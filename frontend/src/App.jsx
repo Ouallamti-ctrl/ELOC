@@ -3845,9 +3845,17 @@ function LoginPage({ onLogin, users, onBack }) {
   };
 
   const pick = (r) => { setRole(r); setEmail(demos[r].email); setPassword(demos[r].password); setErr(""); };
-  const login = () => {
-    const u = users.find(x => x.email.trim().toLowerCase() === email.trim().toLowerCase() && x.password === password);
-    if (u) onLogin(u); else setErr("Invalid credentials. Check email and password.");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const login = async () => {
+    setErr(""); setLoginLoading(true);
+    try {
+      const { token, user } = await api.auth.login(email.trim(), password);
+      onLogin(token, user);
+    } catch (e) {
+      setErr(e.message || "Invalid credentials.");
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
   return (
@@ -8398,31 +8406,15 @@ function GamesPage({ user, data, setData }) {
 export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-
-  // On mount: validate stored token
-  useEffect(() => {
-    if (hasToken()) {
-      api.auth.me()
-        .then(u => { setUser(u); })
-        .catch(() => clearToken())
-        .finally(() => setAuthLoading(false));
-    } else {
-      setAuthLoading(false);
-    }
-  }, []);
-
-  // Load data when user logs in
-  useEffect(() => {
-    if (user) loadAllData();
-  }, [user, loadAllData]);
   const [authScreen, setAuthScreen] = useState("landing");
   const [page, setPage] = useState("dashboard");
+
   // ── Real data from API ──────────────────────────────────────────
   const emptyData = { users:[], groups:[], sessions:[], series:[], payments:[], books:[], lessons:[], attendance:[] };
   const [data, setData] = useState(emptyData);
   const [apiLoading, setApiLoading] = useState(true);
 
-  // Load all data once user is authenticated
+  // Load all data once user is authenticated — declared BEFORE useEffect that references it
   const loadAllData = useCallback(async () => {
     try {
       setApiLoading(true);
@@ -8442,6 +8434,24 @@ export default function App() {
       setApiLoading(false);
     }
   }, []);
+
+  // On mount: validate stored token
+  useEffect(() => {
+    if (hasToken()) {
+      api.auth.me()
+        .then(u => { setUser(u); })
+        .catch(() => clearToken())
+        .finally(() => setAuthLoading(false));
+    } else {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  // Load data when user logs in
+  useEffect(() => {
+    if (user) loadAllData();
+  }, [user, loadAllData]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const toasts = useToasts();
 

@@ -5,12 +5,21 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // During dev: forward /api calls to backend
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
       }
     }
   },
-  build: { outDir: 'dist' }
+  build: {
+    outDir: 'dist',
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        entryFileNames: `assets/[name]-[hash]-v2.js`,
+        chunkFileNames: `assets/[name]-[hash]-v2.js`,
+        assetFileNames: `assets/[name]-[hash]-v2.[ext]`
+      }
+    }
+  }
 });

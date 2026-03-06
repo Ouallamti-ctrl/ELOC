@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { api, saveToken, clearToken, hasToken } from "./api.js";
 
 // ─── RECURRING SESSION ENGINE ──────────────────────────────────────────────────
@@ -3310,11 +3310,11 @@ function SessionsPage({ data, setData, userRole, userId }) {
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
 // ─── LANDING PAGE ─────────────────────────────────────────────────────────────
 function LandingPage({ onGoLogin, onGoSignup }) {
-  const [faqOpen,     setFaqOpen]     = React.useState(null);
-  const [activeTesti, setActiveTesti] = React.useState(0);
-  const [menuOpen,    setMenuOpen]    = React.useState(false);
-  const [vw, setVw] = React.useState(typeof window !== "undefined" ? window.innerWidth : 1024);
-  React.useEffect(() => {
+  const [faqOpen,     setFaqOpen]     = useState(null);
+  const [activeTesti, setActiveTesti] = useState(0);
+  const [menuOpen,    setMenuOpen]    = useState(false);
+  const [vw, setVw] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
+  useEffect(() => {
     const handle = () => setVw(window.innerWidth);
     window.addEventListener("resize", handle);
     return () => window.removeEventListener("resize", handle);
@@ -3846,7 +3846,7 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
     return Object.keys(e).length === 0;
   };
 
-  const [submitting, setSubmitting] = React.useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const submit = async () => {
     if (!validate(2)) return;
     setSubmitting(true);

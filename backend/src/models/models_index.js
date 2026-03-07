@@ -108,3 +108,12 @@ const teacherPaymentSchema = new Schema({
 }, { timestamps: true });
 export const TeacherPayment = model('TeacherPayment', teacherPaymentSchema);
 
+// ── Attendance ────────────────────────────────────────────────────────────────
+const attendanceSchema = new Schema({
+  sessionId:  { type: Schema.Types.ObjectId, ref: 'Session' },
+  studentId:  { type: Schema.Types.ObjectId, ref: 'User' },
+  present:    { type: Boolean, default: false },
+  date:       { type: String },
+  note:       { type: String },
+}, { timestamps: true });
+export const Attendance = model('Attendance', attendanceSchema);

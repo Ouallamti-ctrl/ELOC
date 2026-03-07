@@ -1,4 +1,8 @@
 import express from 'express';
+import { Group, Session, Payment, Book, Lesson, Series, Attendance, TeacherPayment } from '../models/index.js';
+import { protect, adminOnly, teacherOrAdmin } from '../middleware/auth.js';
+import { upload, cloudinary } from '../config/cloudinary.js';
+
 // Helper: convert mongoose doc array to plain objects with string IDs
 const toPlain = (docs) => (docs||[]).map(d => {
   const obj = typeof d.toObject === 'function' ? d.toObject() : { ...d };
@@ -12,9 +16,7 @@ const toPlain = (docs) => (docs||[]).map(d => {
   }
   return obj;
 });
-import { Group, Session, Payment, Book, Lesson, Series } from '../models/index.js';
-import { protect, adminOnly, teacherOrAdmin } from '../middleware/auth.js';
-import { upload, cloudinary } from '../config/cloudinary.js';
+
 
 // ── GROUPS ──────────────────────────────────────────────────────────────────
 export const groupRouter = express.Router();

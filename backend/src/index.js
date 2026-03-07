@@ -6,8 +6,9 @@ import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import {
   groupRouter, sessionRouter, paymentRouter,
-  bookRouter, lessonRouter, seriesRouter
-} from './routes/resources.js', teacherPaymentRouter };
+  bookRouter, lessonRouter, seriesRouter,
+  teacherPaymentRouter, attendanceRouter
+} from './routes/resources.js';
 
 const app = express();
 

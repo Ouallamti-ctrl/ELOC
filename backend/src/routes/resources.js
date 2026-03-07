@@ -72,11 +72,18 @@ sessionRouter.get('/', async (req, res) => {
       const group = await Group.findOne({ _id: user.groupId });
       if (group) filter.groupId = group._id;
     }
-    const sessions = await Session.find(filter).lean()
-      .populate('teacherId', 'name avatar')
-      .populate('groupId', 'name level')
+    const sessions = await Session.find(filter)
       .sort({ date: 1, startTime: 1 });
-    res.json(sessions);
+    res.json(sessions.map(s => {
+      const o = s.toObject();
+      return {
+        ...o,
+        id: o._id.toString(),
+        _id: o._id.toString(),
+        teacherId: o.teacherId?.toString() || '',
+        groupId:   o.groupId?.toString()   || '',
+      };
+    }));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -311,3 +318,31 @@ teacherPaymentRouter.delete('/:id', adminOnly, async (req, res) => {
   try { await TeacherPayment.findByIdAndDelete(req.params.id); res.json({ ok: true }); }
   catch (err) { res.status(400).json({ message: err.message }); }
 });
+
+// ── Attendance ───────────────────────────────────────────────────────────────
+const attendanceRouter = express.Router();
+attendanceRouter.use(protect);
+attendanceRouter.get('/', async (req, res) => {
+  try {
+    const docs = await Attendance.find().lean().sort({ createdAt: -1 });
+    res.json(docs.map(d => ({ ...d, id: d._id.toString(), _id: d._id.toString(), studentId: d.studentId?.toString()||'', sessionId: d.sessionId?.toString()||'' })));
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+attendanceRouter.post('/', async (req, res) => {
+  try { const doc = await Attendance.create(req.body); res.status(201).json({ ...doc.toObject(), id: doc._id.toString() }); }
+  catch (err) { res.status(400).json({ message: err.message }); }
+});
+attendanceRouter.put('/:id', async (req, res) => {
+  try { const doc = await Attendance.findByIdAndUpdate(req.params.id, req.body, { new: true }); res.json(doc); }
+  catch (err) { res.status(400).json({ message: err.message }); }
+});
+attendanceRouter.delete('/:id', async (req, res) => {
+  try { await Attendance.findByIdAndDelete(req.params.id); res.json({ ok: true }); }
+  catch (err) { res.status(400).json({ message: err.message }); }
+});
+
+export {
+  groupRouter, sessionRouter, paymentRouter,
+  bookRouter, lessonRouter, seriesRouter,
+  teacherPaymentRouter, attendanceRouter
+};

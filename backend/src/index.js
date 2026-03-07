@@ -16,6 +16,8 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'http://localhost:3000',
+    'https://eloc.pro',
+    'https://www.eloc.pro',
     'https://jocular-pastelito-a84716.netlify.app',
     /\.netlify\.app$/,
   ],

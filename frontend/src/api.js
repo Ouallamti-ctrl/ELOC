@@ -1,7 +1,7 @@
 // ─── API CLIENT ──────────────────────────────────────────────────────────────
 // All calls to the real backend. Token is stored in localStorage.
 
-const BASE = import.meta.env.VITE_API_URL || '';
+const BASE = import.meta.env.VITE_API_URL || 'https://eloc-backend.onrender.com';
 
 function getToken() {
   return localStorage.getItem('eloc_token');
@@ -20,7 +20,6 @@ async function request(method, path, body, isFormData = false) {
   });
 
   if (res.status === 401) {
-    // Token expired — force logout
     localStorage.removeItem('eloc_token');
     window.location.reload();
     return;
@@ -59,11 +58,11 @@ export const api = {
 
   // ── Sessions ──────────────────────────────────────────────────────────────
   sessions: {
-    list:           ()                  => request('GET',  '/sessions'),
-    create:         (body)              => request('POST', '/sessions', body),
-    update:         (id, body)          => request('PUT',  `/sessions/${id}`, body),
-    delete:         (id)                => request('DELETE', `/sessions/${id}`),
-    markAttendance: (id, attendance)    => request('PUT',  `/sessions/${id}/attendance`, { attendance }),
+    list:           ()               => request('GET',  '/sessions'),
+    create:         (body)           => request('POST', '/sessions', body),
+    update:         (id, body)       => request('PUT',  `/sessions/${id}`, body),
+    delete:         (id)             => request('DELETE', `/sessions/${id}`),
+    markAttendance: (id, attendance) => request('PUT',  `/sessions/${id}/attendance`, { attendance }),
   },
 
   // ── Payments ──────────────────────────────────────────────────────────────
@@ -76,11 +75,11 @@ export const api = {
 
   // ── Books ─────────────────────────────────────────────────────────────────
   books: {
-    list:       ()           => request('GET',    '/books'),
-    create:     (body)       => request('POST',   '/books', body),
-    update:     (id, body)   => request('PUT',    `/books/${id}`, body),
-    delete:     (id)         => request('DELETE', `/books/${id}`),
-    uploadPDF:  (id, file)   => {
+    list:      ()           => request('GET',    '/books'),
+    create:    (body)       => request('POST',   '/books', body),
+    update:    (id, body)   => request('PUT',    `/books/${id}`, body),
+    delete:    (id)         => request('DELETE', `/books/${id}`),
+    uploadPDF: (id, file)   => {
       const fd = new FormData();
       fd.append('file', file);
       return request('POST', `/books/${id}/upload`, fd, true);

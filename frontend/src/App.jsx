@@ -1598,7 +1598,7 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
                 {lesson.description && <div className="text-sm muted mb10">{lesson.description}</div>}
                 {book && (
                   <div className="flex ac gap10 mb10" style={{ background: "var(--bg3)", borderRadius: 9, padding: "10px 12px" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 9, background: book.coverColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📖</div>
+                    <div style={{ width: 36, height: 36, borderRadius: 9, background: book.coverColor || "#f97316", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📖</div>
                     <div>
                       <div className="fw7 text-sm">{book.title}</div>
                       <div className="text-xs muted">{chapter ? chapter.title : `Level ${book.level}`}</div>
@@ -1828,7 +1828,7 @@ function BooksPage({ data, setData }) {
           const usedInLessons = data.lessons.filter(l => l.bookId === book.id).length;
           return (
             <div key={book.id} className="book-card" onClick={() => setViewBook(book)}>
-              <div className="book-cover" style={{ background: `linear-gradient(135deg, ${book.coverColor}, ${book.coverColor}99)` }}>
+              <div className="book-cover" style={{ background: `linear-gradient(135deg, ${book.coverColor||"#f97316"}, ${(book.coverColor||"#f97316")}99)` }}>
                 <div className="book-cover-shine" />
                 <div className="book-cover-icon">📖</div>
                 <div style={{ position: "absolute", top: 10, right: 10 }}>
@@ -2146,7 +2146,7 @@ function MaterialsPage({ user, data, setData }) {
                   {/* Book spine visual */}
                   <div style={{
                     width: 64, height: 90, borderRadius: 10, flexShrink: 0,
-                    background: `linear-gradient(160deg, ${book.coverColor}, ${book.coverColor}88)`,
+                    background: `linear-gradient(160deg, ${book.coverColor||"#f97316"}, ${(book.coverColor||"#f97316")}88)`,
                     display: "flex", flexDirection: "column", alignItems: "center",
                     justifyContent: "center", gap: 4, boxShadow: `0 4px 16px ${book.coverColor}44`
                   }}>
@@ -3764,7 +3764,7 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
         level: form.level,
       });
       saveToken(token);
-      setDone({ ...user, password: form.password }); // show password once so user can save it
+      setDone({ ...user, id: user._id?.toString() || user.id, password: form.password }); // show password once
       setStep(3);
     } catch (e) {
       setErr(prev => ({ ...prev, email: e.message || "Registration failed" }));
@@ -3823,7 +3823,7 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
               </div>
               <div style={{ display:"flex", gap:10 }}>
                 <button className="btn btn-se w100" style={{ justifyContent:"center" }} onClick={onBack}>Back to Home</button>
-                <button className="btn btn-pr w100" style={{ justifyContent:"center" }} onClick={() => onSuccess && onSuccess(done)}>Go to Dashboard →</button>
+                <button className="btn btn-pr w100" style={{ justifyContent:"center" }} onClick={() => { const u = { ...done, id: done._id?.toString() || done.id }; delete u._id; onSuccess && onSuccess(u); }}>Go to Dashboard →</button>
               </div>
             </div>
           )}
@@ -8601,6 +8601,8 @@ export default function App() {
       });
     } catch (err) {
       console.error("Failed to load data:", err);
+      // Keep emptyData on error so app still renders
+      setData(d => ({ ...emptyData, ...d }));
     } finally {
       setApiLoading(false);
     }

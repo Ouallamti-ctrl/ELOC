@@ -5329,6 +5329,14 @@ function GroupsPage({ data, setData }) {
 
 // ─── PAYMENTS PAGE ────────────────────────────────────────────────────────────
 function PaymentsPage({ data, setData, userRole, userId }) {
+  // Safety: ensure all arrays exist
+  data = {
+    users: [],
+    payments: [],
+    groups: [],
+    sessions: [],
+    ...data,
+  };
   // ── tabs ─────────────────────────────────────────────────────────────────────
   const [tab,       setTab]       = useState("students");   // students | teachers | overview
   const [showAdd,   setShowAdd]   = useState(false);
@@ -8415,6 +8423,17 @@ export default function App() {
   const [apiLoading, setApiLoading] = useState(true);
 
   // Load all data once user is authenticated — declared BEFORE useEffect that references it
+  const normalize = (arr) => (arr || []).map(item => ({
+    ...item,
+    id: item._id || item.id,
+    // normalize nested IDs
+    studentId: item.studentId?._id || item.studentId,
+    teacherId: item.teacherId?._id || item.teacherId,
+    groupId:   item.groupId?._id   || item.groupId,
+    bookId:    item.bookId?._id    || item.bookId,
+    sessionId: item.sessionId?._id || item.sessionId,
+  }));
+
   const loadAllData = useCallback(async () => {
     try {
       setApiLoading(true);
@@ -8427,7 +8446,16 @@ export default function App() {
         api.books.list(),
         api.lessons.list(),
       ]);
-      setData({ users, groups, sessions, series, payments, books, lessons, attendance:[] });
+      setData({
+        users:    normalize(users),
+        groups:   normalize(groups),
+        sessions: normalize(sessions),
+        series:   normalize(series),
+        payments: normalize(payments),
+        books:    normalize(books),
+        lessons:  normalize(lessons),
+        attendance: [],
+      });
     } catch (err) {
       console.error("Failed to load data:", err);
     } finally {

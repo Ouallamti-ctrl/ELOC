@@ -8576,25 +8576,46 @@ export default function App() {
   const [apiLoading, setApiLoading] = useState(true);
 
   // Load all data once user is authenticated — declared BEFORE useEffect that references it
+  // Deep clean: convert any MongoDB/non-primitive value to safe string
+  const deepClean = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    const result = {};
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (val === null || val === undefined) { result[key] = val; }
+      else if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') { result[key] = val; }
+      else if (Array.isArray(val)) {
+        result[key] = val.map(v => {
+          if (!v || typeof v !== 'object') return v;
+          if (v._id) return v._id.toString(); // ObjectId or populated object
+          if (v.id) return v.id.toString();
+          return v; // keep plain objects like chapters
+        });
+      }
+      else if (typeof val === 'object') {
+        if (val._id) result[key] = val._id.toString(); // nested ObjectId
+        else result[key] = String(val); // fallback
+      }
+      else { result[key] = String(val); }
+    }
+    return result;
+  };
+
   const normalize = (arr) => (arr || []).map(item => {
-    const flat = { ...item };
-    // always expose id as plain string, remove _id
-    flat.id = item._id?.toString() || item.id;
+    const flat = deepClean(item);
+    flat.id = item._id?.toString() || item.id?.toString() || flat.id;
     delete flat._id;
-    // helper: flatten any mongo ObjectId to string
-    const fid = (v) => !v ? v : v._id ? v._id.toString() : typeof v === 'object' && !Array.isArray(v) ? String(v) : v;
-    if (item.studentId) flat.studentId = fid(item.studentId);
-    if (item.teacherId) flat.teacherId = fid(item.teacherId);
-    if (item.groupId)   flat.groupId   = fid(item.groupId);
-    if (item.bookId)    flat.bookId    = fid(item.bookId);
-    if (item.sessionId) flat.sessionId = fid(item.sessionId);
-    // flatten arrays of ObjectIds (assignedGroups, students, etc.)
-    if (Array.isArray(item.assignedGroups)) flat.assignedGroups = item.assignedGroups.map(g => fid(g));
-    if (Array.isArray(item.students))       flat.students       = item.students.map(s => fid(s));
-    if (Array.isArray(item.chapters))       flat.chapters       = item.chapters.map(ch => ({ ...ch, id: ch._id?.toString() || ch.id }));
-    // book cover color normalization - check both field names
-    flat.coverColor = item.coverColor || item.color || flat.coverColor || flat.color || '';
+    // book cover color normalization
+    flat.coverColor = flat.coverColor || flat.color || '#f97316';
     flat.color = flat.coverColor;
+    // fix chapters - keep as objects with id
+    if (Array.isArray(item.chapters)) {
+      flat.chapters = item.chapters.map(ch => ({
+        id:    ch._id?.toString() || ch.id,
+        title: ch.title || '',
+        order: ch.order || 0,
+      }));
+    }
     return flat;
   });
 

@@ -2684,6 +2684,7 @@ const getGroupColor = (groupId, groups) => {
 
 // ─── SESSIONS PAGE ────────────────────────────────────────────────────────────
 function SessionsPage({ data, setData, userRole, userId }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
   const [view, setView] = useState("week");
   const [calDate, setCalDate] = useState(() => {
     const t = new Date(); t.setHours(0,0,0,0); return t;
@@ -4299,6 +4300,7 @@ function StudentCredentialCard({ student, onCopy }) {
 }
 
 function StudentsPage({ data, setData }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
   const [search,       setSearch]       = useState("");
   const [lvlFilter,    setLvlFilter]    = useState("all");
   const [payFilter,    setPayFilter]    = useState("all");
@@ -4926,6 +4928,7 @@ function TeacherProfileModal({ teacher, data, setData, onClose, onResetPassword,
 }
 
 function TeachersPage({ data, setData }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
   const [showAdd, setShowAdd] = useState(false);
   const [viewT, setViewT] = useState(null);
   const [showCredentials, setShowCredentials] = useState(null);
@@ -5335,6 +5338,9 @@ function PaymentsPage({ data, setData, userRole, userId }) {
     payments: [],
     groups: [],
     sessions: [],
+    teacherPayments: [],
+    books: [],
+    lessons: [],
     ...data,
   };
   // ── tabs ─────────────────────────────────────────────────────────────────────
@@ -5485,25 +5491,37 @@ function PaymentsPage({ data, setData, userRole, userId }) {
   const chartMax = Math.max(...last6.map(x=>x.collected),1);
 
   // ── mutations ─────────────────────────────────────────────────────────────────
-  const addPayment = () => {
+  const addPayment = async () => {
     if(!form.studentId||!form.amount){toast("Student and amount required","error");return;}
-    const newP = { ...form, id:Date.now(), studentId:Number(form.studentId), amount:Number(form.amount),
-      date:form.status==="paid"?new Date().toISOString().split("T")[0]:null,
-      dueDate:form.dueDate||new Date(Date.now()+7*86400000).toISOString().split("T")[0] };
-    setData(d=>({...d,payments:[...d.payments,newP]}));
-    toast("Payment recorded ✅");
-    setShowAdd(false);
-    setForm({studentId:"",amount:"",month:"February 2025",status:"pending",dueDate:""});
+    try {
+      const newP = await api.payments.create({
+        ...form,
+        amount: Number(form.amount),
+        date: form.status==="paid" ? new Date().toISOString().split("T")[0] : null,
+        dueDate: form.dueDate || new Date(Date.now()+7*86400000).toISOString().split("T")[0],
+      });
+      const flat = { ...newP, id: newP._id?.toString() || newP.id };
+      setData(d=>({...d, payments:[...d.payments, flat]}));
+      toast("Payment recorded ✅");
+      setShowAdd(false);
+      setForm({studentId:"",amount:"",month:"February 2025",status:"pending",dueDate:""});
+    } catch(e) { toast(e.message || "Failed to add payment", "error"); }
   };
 
-  const markPaid = id => {
-    setData(d=>({...d,payments:d.payments.map(p=>p.id===id?{...p,status:"paid",date:new Date().toISOString().split("T")[0]}:p)}));
-    toast("Marked as paid ✅");
+  const markPaid = async id => {
+    try {
+      await api.payments.update(id, { status:"paid", date:new Date().toISOString().split("T")[0] });
+      setData(d=>({...d,payments:d.payments.map(p=>p.id===id?{...p,status:"paid",date:new Date().toISOString().split("T")[0]}:p)}));
+      toast("Marked as paid ✅");
+    } catch(e) { toast(e.message||"Failed","error"); }
   };
 
-  const deletePayment = id => {
-    setData(d=>({...d,payments:d.payments.filter(p=>p.id!==id)}));
-    toast("Payment deleted","warn");
+  const deletePayment = async id => {
+    try {
+      await api.payments.delete(id);
+      setData(d=>({...d,payments:d.payments.filter(p=>p.id!==id)}));
+      toast("Payment deleted","warn");
+    } catch(e) { toast(e.message||"Failed","error"); }
   };
 
   const payTeacher = () => {
@@ -7279,27 +7297,33 @@ function AdminUsersPage({ data, setData, currentUser }) {
     return true;
   };
 
-  const saveNew = () => {
+  const saveNew = async () => {
     if (!validate()) return;
-    setData(d => ({ ...d, users: [...d.users, {
-      id: Date.now(), role: "admin",
-      name: form.name.trim(), email: form.email.trim(),
-      password: form.password, permissions: form.permissions,
-      createdAt: new Date().toISOString().split("T")[0],
-      createdBy: currentUser.id,
-    }]}));
-    toast("✅ Admin user created");
-    setShowAdd(false);
+    try {
+      const newUser = await api.users.create({
+        name: form.name.trim(), email: form.email.trim(),
+        password: form.password, role: "admin",
+        permissions: form.permissions,
+      });
+      const flat = { ...newUser, id: newUser._id?.toString() || newUser.id };
+      setData(d => ({ ...d, users: [...d.users, flat] }));
+      toast("✅ Admin user created");
+      setShowAdd(false);
+    } catch(e) { toast(e.message || "Failed to create admin", "error"); }
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!validate()) return;
-    setData(d => ({ ...d, users: d.users.map(u => u.id === editUser.id
-      ? { ...u, name: form.name.trim(), email: form.email.trim(), password: form.password, permissions: form.permissions }
-      : u
-    )}));
-    toast("✅ Admin user updated");
-    setEditUser(null);
+    try {
+      const updated = await api.users.update(editUser.id, {
+        name: form.name.trim(), email: form.email.trim(),
+        password: form.password, permissions: form.permissions,
+      });
+      const flat = { ...updated, id: updated._id?.toString() || updated.id };
+      setData(d => ({ ...d, users: d.users.map(u => u.id === editUser.id ? { ...u, ...flat } : u) }));
+      toast("✅ Admin user updated");
+      setEditUser(null);
+    } catch(e) { toast(e.message || "Failed to update admin", "error"); }
   };
 
   const deleteAdmin = () => {
@@ -8418,21 +8442,23 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
 
   // ── Real data from API ──────────────────────────────────────────
-  const emptyData = { users:[], groups:[], sessions:[], series:[], payments:[], books:[], lessons:[], attendance:[] };
+  const emptyData = { users:[], groups:[], sessions:[], series:[], payments:[], books:[], lessons:[], attendance:[], teacherPayments:[] };
   const [data, setData] = useState(emptyData);
   const [apiLoading, setApiLoading] = useState(true);
 
   // Load all data once user is authenticated — declared BEFORE useEffect that references it
-  const normalize = (arr) => (arr || []).map(item => ({
-    ...item,
-    id: item._id || item.id,
-    // normalize nested IDs
-    studentId: item.studentId?._id || item.studentId,
-    teacherId: item.teacherId?._id || item.teacherId,
-    groupId:   item.groupId?._id   || item.groupId,
-    bookId:    item.bookId?._id    || item.bookId,
-    sessionId: item.sessionId?._id || item.sessionId,
-  }));
+  const normalize = (arr) => (arr || []).map(item => {
+    const flat = { ...item };
+    // always expose id
+    flat.id = item._id?.toString() || item.id;
+    // flatten nested object IDs
+    if (item.studentId && typeof item.studentId === 'object') flat.studentId = item.studentId._id?.toString();
+    if (item.teacherId && typeof item.teacherId === 'object') flat.teacherId = item.teacherId._id?.toString();
+    if (item.groupId   && typeof item.groupId   === 'object') flat.groupId   = item.groupId._id?.toString();
+    if (item.bookId    && typeof item.bookId    === 'object') flat.bookId    = item.bookId._id?.toString();
+    if (item.sessionId && typeof item.sessionId === 'object') flat.sessionId = item.sessionId._id?.toString();
+    return flat;
+  });
 
   const loadAllData = useCallback(async () => {
     try {

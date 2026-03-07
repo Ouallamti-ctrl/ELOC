@@ -129,14 +129,15 @@ bookRouter.use(protect);
 bookRouter.get('/', async (req, res) => {
   try {
     const books = await Book.find().populate('assignedGroups', 'name level');
-    res.json(books);
+    res.json(books.map(b => ({ ...b.toObject(), id: b._id.toString(), coverColor: b.coverColor || b.color || '#f97316' })));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 bookRouter.post('/', adminOnly, async (req, res) => {
   try {
-    const book = await Book.create(req.body);
-    res.status(201).json(book);
+    const { title, author, level, description, coverColor, color, assignedGroups } = req.body;
+    const book = await Book.create({ title, author, level, description, assignedGroups: assignedGroups||[], coverColor: coverColor||color||'#f97316', color: coverColor||color||'#f97316' });
+    res.status(201).json({ ...book.toObject(), coverColor: book.coverColor || '#f97316' });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

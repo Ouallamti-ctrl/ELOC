@@ -1598,7 +1598,7 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
                 {lesson.description && <div className="text-sm muted mb10">{lesson.description}</div>}
                 {book && (
                   <div className="flex ac gap10 mb10" style={{ background: "var(--bg3)", borderRadius: 9, padding: "10px 12px" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 9, background: book.coverColor || "#f97316", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📖</div>
+                    <div style={{ width: 36, height: 36, borderRadius: 9, background: (book.coverColor && book.coverColor !== "") ? book.coverColor : "#f97316", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📖</div>
                     <div>
                       <div className="fw7 text-sm">{book.title}</div>
                       <div className="text-xs muted">{chapter ? chapter.title : `Level ${book.level}`}</div>
@@ -1777,7 +1777,7 @@ function BooksPage({ data, setData }) {
     if (!form.title) { toast("Book title required", "error"); return; }
     try {
       const newBook = await api.books.create({ ...form, chapters: [], fileId: null });
-      const flat = { ...newBook, id: newBook._id?.toString() || newBook.id, chapters: newBook.chapters || [] };
+      const flat = { ...newBook, id: newBook._id?.toString() || newBook.id, chapters: newBook.chapters || [], coverColor: newBook.coverColor || form.coverColor || '#f97316' };
       setData(d => ({ ...d, books: [...d.books, flat] }));
       toast("📚 Book created");
       setShowAdd(false);
@@ -3764,14 +3764,21 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
         level: form.level,
       });
       saveToken(token);
-      // Deep flatten - convert ALL MongoDB objects to plain strings
-      const cleanUser = JSON.parse(JSON.stringify(user, (key, val) => {
-        if (val && typeof val === 'object' && val._id) return val._id.toString();
-        if (key === '_id') return val?.toString ? val.toString() : val;
-        return val;
-      }));
-      cleanUser.id = cleanUser._id || cleanUser.id;
-      delete cleanUser._id;
+      // Flatten user - convert every value to a safe primitive
+      const safeStr = (v) => !v ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : v._id ? v._id.toString() : String(v);
+      const cleanUser = {
+        id:               safeStr(user._id || user.id),
+        name:             safeStr(user.name),
+        email:            safeStr(user.email),
+        role:             safeStr(user.role) || 'student',
+        phone:            safeStr(user.phone),
+        age:              safeStr(user.age),
+        city:             safeStr(user.city),
+        level:            safeStr(user.level),
+        avatar:           safeStr(user.avatar),
+        registrationDate: safeStr(user.registrationDate),
+        groupId:          safeStr(user.groupId),
+      };
       setDone({ ...cleanUser, password: form.password }); // show password once
       setStep(3);
     } catch (e) {
@@ -3924,8 +3931,15 @@ function LoginPage({ onLogin, users, onBack }) {
     setErr(""); setLoginLoading(true);
     try {
       const { token, user } = await api.auth.login(email.trim(), password);
-      const clean = { ...user, id: user._id?.toString() || user.id };
-      delete clean._id;
+      const safeStr = (v) => !v ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : v._id ? v._id.toString() : String(v);
+      const clean = {
+        id: safeStr(user._id || user.id), name: safeStr(user.name),
+        email: safeStr(user.email), role: safeStr(user.role),
+        avatar: safeStr(user.avatar), phone: safeStr(user.phone),
+        city: safeStr(user.city), level: safeStr(user.level),
+        groupId: safeStr(user.groupId), age: safeStr(user.age),
+        registrationDate: safeStr(user.registrationDate),
+      };
       onLogin(token, clean);
     } catch (e) {
       setErr(e.message || "Invalid credentials.");
@@ -8578,9 +8592,9 @@ export default function App() {
     if (Array.isArray(item.assignedGroups)) flat.assignedGroups = item.assignedGroups.map(g => fid(g));
     if (Array.isArray(item.students))       flat.students       = item.students.map(s => fid(s));
     if (Array.isArray(item.chapters))       flat.chapters       = item.chapters.map(ch => ({ ...ch, id: ch._id?.toString() || ch.id }));
-    // book cover color normalization
-    if (item.color && !item.coverColor) flat.coverColor = item.color;
-    if (item.coverColor && !item.color) flat.color = item.coverColor;
+    // book cover color normalization - check both field names
+    flat.coverColor = item.coverColor || item.color || flat.coverColor || flat.color || '';
+    flat.color = flat.coverColor;
     return flat;
   });
 
@@ -8623,8 +8637,15 @@ export default function App() {
     if (hasToken()) {
       api.auth.me()
         .then(u => {
-          const clean = { ...u, id: u._id?.toString() || u.id };
-          delete clean._id;
+          const safeStr = (v) => !v ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : v._id ? v._id.toString() : String(v);
+          const clean = {
+            id: safeStr(u._id || u.id), name: safeStr(u.name),
+            email: safeStr(u.email), role: safeStr(u.role),
+            avatar: safeStr(u.avatar), phone: safeStr(u.phone),
+            city: safeStr(u.city), level: safeStr(u.level),
+            groupId: safeStr(u.groupId), age: safeStr(u.age),
+            registrationDate: safeStr(u.registrationDate),
+          };
           setUser(clean);
         })
         .catch(() => clearToken())

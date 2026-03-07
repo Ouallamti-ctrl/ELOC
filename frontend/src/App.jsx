@@ -3764,7 +3764,15 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
         level: form.level,
       });
       saveToken(token);
-      setDone({ ...user, id: user._id?.toString() || user.id, password: form.password }); // show password once
+      // Deep flatten - convert ALL MongoDB objects to plain strings
+      const cleanUser = JSON.parse(JSON.stringify(user, (key, val) => {
+        if (val && typeof val === 'object' && val._id) return val._id.toString();
+        if (key === '_id') return val?.toString ? val.toString() : val;
+        return val;
+      }));
+      cleanUser.id = cleanUser._id || cleanUser.id;
+      delete cleanUser._id;
+      setDone({ ...cleanUser, password: form.password }); // show password once
       setStep(3);
     } catch (e) {
       setErr(prev => ({ ...prev, email: e.message || "Registration failed" }));
@@ -3823,7 +3831,7 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
               </div>
               <div style={{ display:"flex", gap:10 }}>
                 <button className="btn btn-se w100" style={{ justifyContent:"center" }} onClick={onBack}>Back to Home</button>
-                <button className="btn btn-pr w100" style={{ justifyContent:"center" }} onClick={() => { const u = { ...done, id: done._id?.toString() || done.id }; delete u._id; onSuccess && onSuccess(u); }}>Go to Dashboard →</button>
+                <button className="btn btn-pr w100" style={{ justifyContent:"center" }} onClick={() => onSuccess && onSuccess(done)}>Go to Dashboard →</button>
               </div>
             </div>
           )}
@@ -3916,7 +3924,9 @@ function LoginPage({ onLogin, users, onBack }) {
     setErr(""); setLoginLoading(true);
     try {
       const { token, user } = await api.auth.login(email.trim(), password);
-      onLogin(token, user);
+      const clean = { ...user, id: user._id?.toString() || user.id };
+      delete clean._id;
+      onLogin(token, clean);
     } catch (e) {
       setErr(e.message || "Invalid credentials.");
     } finally {
@@ -8612,7 +8622,11 @@ export default function App() {
   useEffect(() => {
     if (hasToken()) {
       api.auth.me()
-        .then(u => { setUser(u); })
+        .then(u => {
+          const clean = { ...u, id: u._id?.toString() || u.id };
+          delete clean._id;
+          setUser(clean);
+        })
         .catch(() => clearToken())
         .finally(() => setAuthLoading(false));
     } else {

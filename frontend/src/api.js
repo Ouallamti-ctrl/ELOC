@@ -108,6 +108,18 @@ export const api = {
     update: (id, body) => request('PUT',    `/series/${id}`, body),
     delete: (id)       => request('DELETE', `/series/${id}`),
   },
+  attendance: {
+    list:   ()           => request('GET',    '/attendance'),
+    create: (body)       => request('POST',   '/attendance', body),
+    update: (id, body)   => request('PUT',    `/attendance/${id}`, body),
+    delete: (id)         => request('DELETE', `/attendance/${id}`),
+  },
+  teacherPayments: {
+    list:   ()           => request('GET',    '/teacher-payments'),
+    create: (body)       => request('POST',   '/teacher-payments', body),
+    update: (id, body)   => request('PUT',    `/teacher-payments/${id}`, body),
+    delete: (id)         => request('DELETE', `/teacher-payments/${id}`),
+  },
 };
 
 // ── Token helpers ─────────────────────────────────────────────────────────────

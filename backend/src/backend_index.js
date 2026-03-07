@@ -7,7 +7,7 @@ import usersRouter from './routes/users.js';
 import {
   groupRouter, sessionRouter, paymentRouter,
   bookRouter, lessonRouter, seriesRouter
-} from './routes/resources.js';
+} from './routes/resources.js', teacherPaymentRouter };
 
 const app = express();
 
@@ -35,6 +35,8 @@ app.use('/api/payments', paymentRouter);
 app.use('/api/books',    bookRouter);
 app.use('/api/lessons',  lessonRouter);
 app.use('/api/series',   seriesRouter);
+app.use('/api/attendance',        attendanceRouter);
+app.use('/api/teacher-payments',  teacherPaymentRouter);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) => res.json({ status: 'ok', time: new Date() }));

@@ -262,3 +262,27 @@ seriesRouter.delete('/:id', adminOnly, async (req, res) => {
   try { await Series.findByIdAndDelete(req.params.id); res.json({ message: 'Series deleted' }); }
   catch (err) { res.status(500).json({ message: err.message }); }
 });
+
+// ── TEACHER PAYMENTS ─────────────────────────────────────────────────────────
+export const teacherPaymentRouter = express.Router();
+teacherPaymentRouter.use(protect);
+
+teacherPaymentRouter.get('/', async (req, res) => {
+  try { res.json(await TeacherPayment.find().sort({ date: -1 })); }
+  catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+teacherPaymentRouter.post('/', adminOnly, async (req, res) => {
+  try { const tp = await TeacherPayment.create(req.body); res.status(201).json(tp); }
+  catch (err) { res.status(400).json({ message: err.message }); }
+});
+
+teacherPaymentRouter.put('/:id', adminOnly, async (req, res) => {
+  try { const tp = await TeacherPayment.findByIdAndUpdate(req.params.id, req.body, { new: true }); res.json(tp); }
+  catch (err) { res.status(400).json({ message: err.message }); }
+});
+
+teacherPaymentRouter.delete('/:id', adminOnly, async (req, res) => {
+  try { await TeacherPayment.findByIdAndDelete(req.params.id); res.json({ ok: true }); }
+  catch (err) { res.status(400).json({ message: err.message }); }
+});

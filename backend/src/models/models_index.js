@@ -45,6 +45,8 @@ const bookSchema = new Schema({
   author:      { type: String },
   level:       { type: String },
   color:       { type: String },
+  coverColor:  { type: String },
+  description: { type: String },
   chapters:    [{ title: String, order: Number }],
   assignedGroups: [{ type: Schema.Types.ObjectId, ref: 'Group' }],
   fileId:      { type: String },      // Cloudinary public_id
@@ -94,3 +96,15 @@ export const Payment  = mongoose.model('Payment',  paymentSchema);
 export const Book     = mongoose.model('Book',     bookSchema);
 export const Lesson   = mongoose.model('Lesson',   lessonSchema);
 export const Series   = mongoose.model('Series',   seriesSchema);
+
+// ── TEACHER PAYMENT ───────────────────────────────────────────────────────────
+const teacherPaymentSchema = new Schema({
+  teacherId:   { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  amount:      { type: Number, required: true },
+  date:        { type: String },
+  month:       { type: String },
+  status:      { type: String, default: 'pending' },
+  note:        { type: String },
+}, { timestamps: true });
+export const TeacherPayment = model('TeacherPayment', teacherPaymentSchema);
+

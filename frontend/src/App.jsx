@@ -8554,14 +8554,23 @@ export default function App() {
   // Load all data once user is authenticated — declared BEFORE useEffect that references it
   const normalize = (arr) => (arr || []).map(item => {
     const flat = { ...item };
-    // always expose id
+    // always expose id as plain string, remove _id
     flat.id = item._id?.toString() || item.id;
-    // flatten nested object IDs
-    if (item.studentId && typeof item.studentId === 'object') flat.studentId = item.studentId._id?.toString();
-    if (item.teacherId && typeof item.teacherId === 'object') flat.teacherId = item.teacherId._id?.toString();
-    if (item.groupId   && typeof item.groupId   === 'object') flat.groupId   = item.groupId._id?.toString();
-    if (item.bookId    && typeof item.bookId    === 'object') flat.bookId    = item.bookId._id?.toString();
-    if (item.sessionId && typeof item.sessionId === 'object') flat.sessionId = item.sessionId._id?.toString();
+    delete flat._id;
+    // helper: flatten any mongo ObjectId to string
+    const fid = (v) => !v ? v : v._id ? v._id.toString() : typeof v === 'object' && !Array.isArray(v) ? String(v) : v;
+    if (item.studentId) flat.studentId = fid(item.studentId);
+    if (item.teacherId) flat.teacherId = fid(item.teacherId);
+    if (item.groupId)   flat.groupId   = fid(item.groupId);
+    if (item.bookId)    flat.bookId    = fid(item.bookId);
+    if (item.sessionId) flat.sessionId = fid(item.sessionId);
+    // flatten arrays of ObjectIds (assignedGroups, students, etc.)
+    if (Array.isArray(item.assignedGroups)) flat.assignedGroups = item.assignedGroups.map(g => fid(g));
+    if (Array.isArray(item.students))       flat.students       = item.students.map(s => fid(s));
+    if (Array.isArray(item.chapters))       flat.chapters       = item.chapters.map(ch => ({ ...ch, id: ch._id?.toString() || ch.id }));
+    // book cover color normalization
+    if (item.color && !item.coverColor) flat.coverColor = item.color;
+    if (item.coverColor && !item.color) flat.color = item.coverColor;
     return flat;
   });
 

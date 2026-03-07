@@ -1,4 +1,17 @@
 import express from 'express';
+// Helper: convert mongoose doc array to plain objects with string IDs
+const toPlain = (docs) => (docs||[]).map(d => {
+  const obj = typeof d.toObject === 'function' ? d.toObject() : { ...d };
+  obj.id = obj._id?.toString() || obj.id;
+  obj._id = obj.id;
+  // flatten all ObjectId fields
+  for (const key of Object.keys(obj)) {
+    const v = obj[key];
+    if (v && typeof v === 'object' && !Array.isArray(v) && v._id) obj[key] = v._id.toString();
+    if (Array.isArray(v)) obj[key] = v.map(i => i?._id ? i._id.toString() : i?.toString ? i.toString() : i);
+  }
+  return obj;
+});
 import { Group, Session, Payment, Book, Lesson, Series } from '../models/index.js';
 import { protect, adminOnly, teacherOrAdmin } from '../middleware/auth.js';
 import { upload, cloudinary } from '../config/cloudinary.js';
@@ -9,8 +22,16 @@ groupRouter.use(protect);
 
 groupRouter.get('/', async (req, res) => {
   try {
-    const groups = await Group.find().populate('teacherId', 'name email avatar');
-    res.json(groups);
+    const groups = await Group.find().lean();
+    // Return plain objects with string IDs - no populated objects that confuse frontend
+    res.json(groups.map(g => ({
+      ...g,
+      id: g._id.toString(),
+      _id: g._id.toString(),
+      teacherId: g.teacherId?.toString() || '',
+      students: (g.students || []).map(s => s?.toString ? s.toString() : s),
+      assignedBooks: (g.assignedBooks || []).map(b => b?.toString ? b.toString() : b),
+    })));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -42,13 +63,16 @@ sessionRouter.use(protect);
 sessionRouter.get('/', async (req, res) => {
   try {
     const filter = {};
-    if (req.user.role === 'teacher') filter.teacherId = req.user._id;
+    if (req.user.role === 'teacher') {
+      // Match both ObjectId and string versions of teacherId
+      filter.$or = [{ teacherId: req.user._id }, { teacherId: req.user._id.toString() }];
+    }
     if (req.user.role === 'student') {
       const user = req.user;
       const group = await Group.findOne({ _id: user.groupId });
       if (group) filter.groupId = group._id;
     }
-    const sessions = await Session.find(filter)
+    const sessions = await Session.find(filter).lean()
       .populate('teacherId', 'name avatar')
       .populate('groupId', 'name level')
       .sort({ date: 1, startTime: 1 });
@@ -128,8 +152,8 @@ bookRouter.use(protect);
 
 bookRouter.get('/', async (req, res) => {
   try {
-    const books = await Book.find().populate('assignedGroups', 'name level');
-    res.json(books.map(b => ({ ...b.toObject(), id: b._id.toString(), coverColor: b.coverColor || b.color || '#f97316' })));
+    const books = await Book.find().lean();
+    res.json(books.map(b => ({ ...b, id: b._id.toString(), _id: b._id.toString(), coverColor: b.coverColor || b.color || '#f97316', assignedGroups: (b.assignedGroups||[]).map(g=>g?.toString()) })));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -248,7 +272,7 @@ lessonRouter.delete('/:id', teacherOrAdmin, async (req, res) => {
 export const seriesRouter = express.Router();
 seriesRouter.use(protect);
 seriesRouter.get('/', async (req, res) => {
-  try { res.json(await Series.find()); }
+  try { res.json(await Series.find().lean()); }
   catch (err) { res.status(500).json({ message: err.message }); }
 });
 seriesRouter.post('/', teacherOrAdmin, async (req, res) => {
@@ -269,7 +293,7 @@ export const teacherPaymentRouter = express.Router();
 teacherPaymentRouter.use(protect);
 
 teacherPaymentRouter.get('/', async (req, res) => {
-  try { res.json(await TeacherPayment.find().sort({ date: -1 })); }
+  try { res.json(await TeacherPayment.find().lean().sort({ date: -1 })); }
   catch (err) { res.status(500).json({ message: err.message }); }
 });
 

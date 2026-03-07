@@ -20,9 +20,13 @@ async function request(method, path, body, isFormData = false) {
   });
 
   if (res.status === 401) {
-    localStorage.removeItem('eloc_token');
-    window.location.reload();
-    return;
+    // Only auto-logout if this is NOT a login/register attempt
+    if (!path.includes('/auth/login') && !path.includes('/auth/register')) {
+      localStorage.removeItem('eloc_token');
+      window.location.reload();
+    }
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.message || 'Invalid email or password');
   }
 
   const data = await res.json().catch(() => ({}));

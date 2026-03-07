@@ -3764,21 +3764,7 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
         level: form.level,
       });
       saveToken(token);
-      // Flatten user - convert every value to a safe primitive
-      const safeStr = (v) => !v ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : v._id ? v._id.toString() : String(v);
-      const cleanUser = {
-        id:               safeStr(user._id || user.id),
-        name:             safeStr(user.name),
-        email:            safeStr(user.email),
-        role:             safeStr(user.role) || 'student',
-        phone:            safeStr(user.phone),
-        age:              safeStr(user.age),
-        city:             safeStr(user.city),
-        level:            safeStr(user.level),
-        avatar:           safeStr(user.avatar),
-        registrationDate: safeStr(user.registrationDate),
-        groupId:          safeStr(user.groupId),
-      };
+      const cleanUser = deepClean(user);
       setDone({ ...cleanUser, password: form.password }); // show password once
       setStep(3);
     } catch (e) {
@@ -3931,16 +3917,7 @@ function LoginPage({ onLogin, users, onBack }) {
     setErr(""); setLoginLoading(true);
     try {
       const { token, user } = await api.auth.login(email.trim(), password);
-      const safeStr = (v) => !v ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : v._id ? v._id.toString() : String(v);
-      const clean = {
-        id: safeStr(user._id || user.id), name: safeStr(user.name),
-        email: safeStr(user.email), role: safeStr(user.role),
-        avatar: safeStr(user.avatar), phone: safeStr(user.phone),
-        city: safeStr(user.city), level: safeStr(user.level),
-        groupId: safeStr(user.groupId), age: safeStr(user.age),
-        registrationDate: safeStr(user.registrationDate),
-      };
-      onLogin(token, clean);
+      onLogin(token, deepClean(user));
     } catch (e) {
       setErr(e.message || "Invalid credentials.");
     } finally {
@@ -8564,6 +8541,32 @@ export class ErrorBoundary extends React.Component {
   }
 }
 
+// ─── GLOBAL DEEP CLEAN ──────────────────────────────────────────────────────
+// Deep clean: convert any MongoDB/non-primitive value to safe string
+const deepClean = (obj) => {
+  if (!obj || typeof obj !== 'object') return obj;
+  const result = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val === null || val === undefined) { result[key] = val; }
+    else if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') { result[key] = val; }
+    else if (Array.isArray(val)) {
+      result[key] = val.map(v => {
+        if (!v || typeof v !== 'object') return v;
+        if (v._id) return v._id.toString(); // ObjectId or populated object
+        if (v.id) return v.id.toString();
+        return v; // keep plain objects like chapters
+      });
+    }
+    else if (typeof val === 'object') {
+      if (val._id) result[key] = val._id.toString(); // nested ObjectId
+      else result[key] = String(val); // fallback
+    }
+    else { result[key] = String(val); }
+  }
+  return result;
+};
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -8576,30 +8579,7 @@ export default function App() {
   const [apiLoading, setApiLoading] = useState(true);
 
   // Load all data once user is authenticated — declared BEFORE useEffect that references it
-  // Deep clean: convert any MongoDB/non-primitive value to safe string
-  const deepClean = (obj) => {
-    if (!obj || typeof obj !== 'object') return obj;
-    const result = {};
-    for (const key of Object.keys(obj)) {
-      const val = obj[key];
-      if (val === null || val === undefined) { result[key] = val; }
-      else if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') { result[key] = val; }
-      else if (Array.isArray(val)) {
-        result[key] = val.map(v => {
-          if (!v || typeof v !== 'object') return v;
-          if (v._id) return v._id.toString(); // ObjectId or populated object
-          if (v.id) return v.id.toString();
-          return v; // keep plain objects like chapters
-        });
-      }
-      else if (typeof val === 'object') {
-        if (val._id) result[key] = val._id.toString(); // nested ObjectId
-        else result[key] = String(val); // fallback
-      }
-      else { result[key] = String(val); }
-    }
-    return result;
-  };
+
 
   const normalize = (arr) => (arr || []).map(item => {
     const flat = deepClean(item);
@@ -8658,16 +8638,7 @@ export default function App() {
     if (hasToken()) {
       api.auth.me()
         .then(u => {
-          const safeStr = (v) => !v ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : v._id ? v._id.toString() : String(v);
-          const clean = {
-            id: safeStr(u._id || u.id), name: safeStr(u.name),
-            email: safeStr(u.email), role: safeStr(u.role),
-            avatar: safeStr(u.avatar), phone: safeStr(u.phone),
-            city: safeStr(u.city), level: safeStr(u.level),
-            groupId: safeStr(u.groupId), age: safeStr(u.age),
-            registrationDate: safeStr(u.registrationDate),
-          };
-          setUser(clean);
+          setUser(deepClean(u));
         })
         .catch(() => clearToken())
         .finally(() => setAuthLoading(false));

@@ -10,8 +10,8 @@ router.get('/', async (req, res) => {
   try {
     let query = {};
     if (req.user.role === 'student') query._id = req.user._id;
-    const users = await User.find(query).select('-password').sort({ createdAt: -1 });
-    res.json(users);
+    const users = await User.find(query).select('-password').lean().sort({ createdAt: -1 });
+    res.json(users.map(u => ({ ...u, id: u._id.toString(), _id: u._id.toString(), groupId: u.groupId?.toString() || '' })));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

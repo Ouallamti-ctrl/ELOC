@@ -320,7 +320,7 @@ teacherPaymentRouter.delete('/:id', adminOnly, async (req, res) => {
 });
 
 // ── Attendance ───────────────────────────────────────────────────────────────
-const attendanceRouter = express.Router();
+export const attendanceRouter = express.Router();
 attendanceRouter.use(protect);
 attendanceRouter.get('/', async (req, res) => {
   try {

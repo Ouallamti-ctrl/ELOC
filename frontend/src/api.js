@@ -67,6 +67,7 @@ export const api = {
     update:         (id, body)       => request('PUT',  `/sessions/${id}`, body),
     delete:         (id)             => request('DELETE', `/sessions/${id}`),
     markAttendance: (id, attendance) => request('PUT',  `/sessions/${id}/attendance`, { attendance }),
+    markStudent:    (id, studentId, present) => request('PATCH', `/sessions/${id}/attendance`, { studentId, present }),
   },
 
   // ── Payments ──────────────────────────────────────────────────────────────

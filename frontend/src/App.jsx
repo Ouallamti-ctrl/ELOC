@@ -141,7 +141,7 @@ function buildInitialSessions() {
 // or placeholder references so the UI is fully functional without a backend.
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────────
-const fmt$ = (n) => `$${(n ?? 0).toLocaleString()}`;
+const fmt$ = (n) => `${(n ?? 0).toLocaleString()} MAD`;
 const getInitials = (name) => name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() ?? "??";
 const statusColor = { paid: "#22c55e", pending: "#f59e0b", overdue: "#ef4444", upcoming: "#f97316", completed: "#22c55e", cancelled: "#6b7280", active: "#22c55e", unpaid: "#ef4444", paused: "#f59e0b" };
 const avatarPalette = ["#f97316","#8b5cf6","#ec4899","#f59e0b","#22c55e","#3b82f6","#ef4444","#06b6d4"];
@@ -970,7 +970,7 @@ function BarChart({ data, h = 110 }) {
       {data.map((d, i) => (
         <div key={i} className="bc-item">
           <div style={{ fontSize: 10, color: "var(--text2)", fontWeight: 600 }}>
-            {d.v > 999 ? `$${(d.v / 1000).toFixed(1)}k` : d.v || ""}
+            {d.v > 999 ? `${(d.v / 1000).toFixed(1)}k MAD` : d.v || ""}
           </div>
           <div className="bc-bar" style={{ height: `${Math.max(4, (d.v / max) * (h - 24))}px`, background: d.c ?? "var(--accent)" }} />
           <div className="bc-label">{d.l}</div>
@@ -2859,7 +2859,7 @@ function SessionsPage({ data, setData, userRole, userId }) {
   const markAttendance = async (sess, studentId, present) => {
     setData(d => ({ ...d, sessions: d.sessions.map(s => s.id === sess.id ? { ...s, attendance: { ...s.attendance, [studentId]: present } } : s) }));
     try {
-      await api.attendance.create({ sessionId: sess.id, studentId, present });
+      await api.sessions.markStudent(sess.id, studentId, present);
     } catch(e) { console.error('Attendance save error', e); }
   };
   const completeSession = (sess) => {
@@ -4081,13 +4081,14 @@ function Sidebar({ user, active, onNav, open }) {
     teacher: [
       { sec: "Overview", items: [{ id: "dashboard", icon: "⬛", label: "Dashboard" }] },
       { sec: "Teaching", items: [{ id: "sessions", icon: "📅", label: "My Sessions" }, { id: "groups", icon: "👥", label: "My Groups" }, { id: "materials", icon: "📖", label: "My Materials" }] },
+      { sec: "Students", items: [{ id: "attendance", icon: "✅", label: "Attendance" }] },
       { sec: "Finance", items: [{ id: "earnings", icon: "💰", label: "Earnings" }] },
     ],
     student: [
       { sec: "Overview", items: [{ id: "dashboard", icon: "⬛", label: "Dashboard" }] },
       { sec: "Learning", items: [{ id: "sessions", icon: "📅", label: "My Calendar" }, { id: "classes", icon: "📚", label: "My Classes" }, { id: "materials", icon: "📖", label: "My Materials" }] },
       { sec: "Fun", items: [{ id: "games", icon: "🎮", label: "Games" }] },
-      { sec: "Account", items: [{ id: "attendance", icon: "✅", label: "Attendance" }, { id: "payments", icon: "💳", label: "Payments" }] },
+      { sec: "Account", items: [{ id: "attendance", icon: "✅", label: "Attendance" }, { id: "payments", icon: "💳", label: "Payments" }, { id: "profile", icon: "🔑", label: "My Profile" }] },
     ],
   };
 
@@ -6277,6 +6278,85 @@ function TeacherDashboard({ user, data }) {
 }
 
 // ─── STUDENT DASHBOARD ────────────────────────────────────────────────────────
+function StudentProfile({ user, setUser }) {
+  const [form, setForm]   = useState({ currentPw: "", newPw: "", confirmPw: "" });
+  const [saving, setSaving] = useState(false);
+  const [msg,    setMsg]    = useState(null);
+
+  const handleChange = async () => {
+    if (!form.currentPw || !form.newPw || !form.confirmPw) { setMsg({ type:"error", text:"All fields required" }); return; }
+    if (form.newPw.length < 6) { setMsg({ type:"error", text:"New password must be at least 6 characters" }); return; }
+    if (form.newPw !== form.confirmPw) { setMsg({ type:"error", text:"New passwords don\'t match" }); return; }
+    setSaving(true); setMsg(null);
+    try {
+      await api.auth.changePassword({ currentPassword: form.currentPw, newPassword: form.newPw });
+      setMsg({ type:"success", text:"✅ Password changed successfully! Google\'s warning should disappear on next login." });
+      setForm({ currentPw: "", newPw: "", confirmPw: "" });
+    } catch(e) {
+      setMsg({ type:"error", text: e.message || "Failed to change password" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div>
+      <div className="ph">
+        <div>
+          <div className="ph-title">👤 My Profile</div>
+          <div className="ph-sub">Manage your account and security settings</div>
+        </div>
+      </div>
+
+      {/* Profile Card */}
+      <div className="card mb16" style={{ display:"flex", alignItems:"center", gap:16, padding:"20px 24px" }}>
+        <Av name={user.name} sz="av-xl" />
+        <div>
+          <div style={{ fontSize:20, fontWeight:900 }}>{user.name}</div>
+          <div style={{ fontSize:13, color:"var(--text3)", marginTop:4 }}>{user.email}</div>
+          <div style={{ marginTop:8, display:"flex", gap:8 }}>
+            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:99, background:"var(--glow)", color:"var(--accent)" }}>
+              {user.level || "Student"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <div className="card">
+        <div className="sh-title mb16">🔑 Change Password</div>
+        <div style={{ background:"rgba(59,130,246,.08)", border:"1px solid rgba(59,130,246,.2)", borderRadius:10, padding:"12px 16px", marginBottom:16, fontSize:13, color:"var(--text2)" }}>
+          💡 If you see a "Change your password" warning from your browser, simply set a new strong password here and the warning will go away after your next login.
+        </div>
+        {msg && (
+          <div style={{ padding:"10px 14px", borderRadius:9, marginBottom:14, fontSize:13, fontWeight:600,
+            background: msg.type==="success" ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.1)",
+            color: msg.type==="success" ? "#16a34a" : "#dc2626",
+            border: `1px solid ${msg.type==="success" ? "rgba(34,197,94,.3)" : "rgba(239,68,68,.25)"}` }}>
+            {msg.text}
+          </div>
+        )}
+        <div style={{ display:"flex", flexDirection:"column", gap:12, maxWidth:400 }}>
+          <div className="fg">
+            <label>Current Password</label>
+            <input type="password" value={form.currentPw} onChange={e => setForm(p => ({...p, currentPw: e.target.value}))} placeholder="Enter current password" />
+          </div>
+          <div className="fg">
+            <label>New Password</label>
+            <input type="password" value={form.newPw} onChange={e => setForm(p => ({...p, newPw: e.target.value}))} placeholder="At least 6 characters" />
+          </div>
+          <div className="fg">
+            <label>Confirm New Password</label>
+            <input type="password" value={form.confirmPw} onChange={e => setForm(p => ({...p, confirmPw: e.target.value}))} placeholder="Repeat new password" />
+          </div>
+          <button className="btn btn-pr" style={{ alignSelf:"flex-start", minWidth:160 }}
+            onClick={handleChange} disabled={saving}>
+            {saving ? "Saving…" : "🔑 Update Password"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StudentDashboard({ user, data }) {
   data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
   const myGroup = data.groups.find(g => g.id === user.groupId);
@@ -6401,7 +6481,10 @@ function Analytics({ data }) {
   const [selYear,  setSelYear]  = useState("2026");
 
   // ── raw data ────────────────────────────────────────────────────────────────
-  const students  = data.users.filter(u => u.role === "student");
+  const teacherGroupIds = teacherFilter
+    ? data.groups.filter(g => String(g.teacherId) === String(teacherFilter)).map(g => g.id)
+    : null;
+  const students  = data.users.filter(u => u.role === "student" && (!teacherGroupIds || teacherGroupIds.includes(u.groupId)));
   const teachers  = data.users.filter(u => u.role === "teacher");
   const completed = data.sessions.filter(s => s.status === "completed");
   const upcoming  = data.sessions.filter(s => s.status === "upcoming");
@@ -7625,7 +7708,7 @@ function AdminUsersPage({ data, setData, currentUser }) {
 }
 
 // ─── ADMIN ATTENDANCE PAGE ────────────────────────────────────────────────────
-function AdminAttendancePage({ data, setData }) {
+function AdminAttendancePage({ data, setData, teacherFilter }) {
   data = { users:[], sessions:[], groups:[], payments:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
   const students  = data.users.filter(u => u.role === "student");
   const completed = data.sessions.filter(s => s.status === "completed");
@@ -7641,7 +7724,8 @@ function AdminAttendancePage({ data, setData }) {
   const teacherName = tid => data.users.find(u => u.id === tid)?.name   ?? "—";
 
   const filteredSessions = completed.filter(s => {
-    if (filterGroup !== "all" && s.groupId !== Number(filterGroup)) return false;
+    if (teacherFilter && s.teacherId !== teacherFilter) return false;
+    if (filterGroup !== "all" && String(s.groupId) !== String(filterGroup)) return false;
     if (filterDate  && s.date !== filterDate) return false;
     return true;
   });
@@ -7676,13 +7760,22 @@ function AdminAttendancePage({ data, setData }) {
   const avgRate      = withRate.length ? Math.round(withRate.reduce((a,s)=>a+s.rate,0)/withRate.length) : 0;
   const atRisk       = filtered.filter(s => s.rate !== null && s.rate < 70).length;
 
-  const toggleAtt = (sessId, stuId, val) =>
+  const toggleAtt = async (sessId, stuId, val) => {
+    // Optimistic local update
     setData(d => ({
       ...d,
       sessions: d.sessions.map(s =>
         s.id === sessId ? { ...s, attendance: { ...s.attendance, [stuId]: val } } : s
       )
     }));
+    // Persist to backend
+    try {
+      await api.sessions.markStudent(sessId, stuId, val);
+    } catch(e) {
+      console.error('Attendance save error:', e);
+      toast('Failed to save attendance', 'error');
+    }
+  };
 
   const rc  = r => r === null ? "var(--text3)"            : r >= 80 ? "#22c55e"              : r >= 60 ? "#f59e0b"              : "#ef4444";
   const rbg = r => r === null ? "var(--bg3)"              : r >= 80 ? "rgba(34,197,94,.13)"  : r >= 60 ? "rgba(245,158,11,.13)" : "rgba(239,68,68,.13)";
@@ -8768,6 +8861,7 @@ export default function App() {
         sessions: <SessionsPage data={data} setData={setData} userRole="teacher" userId={user.id} />,
         groups: <GroupsPage data={data} setData={setData} />,
         materials: <MaterialsPage user={user} data={data} setData={setData} />,
+        attendance: <AdminAttendancePage data={data} setData={setData} teacherFilter={user.id} />,
         earnings: <TeacherEarnings user={user} data={data} />,
       };
       return pages[page] ?? pages.dashboard;
@@ -8781,6 +8875,7 @@ export default function App() {
         attendance: <StudentAttendance user={user} data={data} />,
         payments: <PaymentsPage data={data} setData={setData} userRole="student" userId={user.id} />,
         games: <GamesPage user={user} data={data} setData={setData} />,
+        profile: <StudentProfile user={user} setUser={setUser} />,
       };
       return pages[page] ?? pages.dashboard;
     }

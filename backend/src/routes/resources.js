@@ -123,6 +123,21 @@ sessionRouter.put('/:id', teacherOrAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// PATCH attendance for a single student in a session
+sessionRouter.patch('/:id/attendance', teacherOrAdmin, async (req, res) => {
+  try {
+    const { studentId, present } = req.body;
+    if (!studentId) return res.status(400).json({ message: 'studentId required' });
+    const key = `attendance.${studentId}`;
+    const session = await Session.findByIdAndUpdate(
+      req.params.id,
+      { $set: { [key]: present } },
+      { new: true }
+    );
+    res.json(toPlainOne(session));
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 sessionRouter.delete('/:id', adminOnly, async (req, res) => {
   try {
     await Session.findByIdAndDelete(req.params.id);
@@ -265,7 +280,13 @@ lessonRouter.post('/:id/files', teacherOrAdmin, upload.single('file'), async (re
       { $push: { files: fileEntry } },
       { new: true }
     );
-    res.json(lesson);
+    // Return the Cloudinary URL as fileId so frontend can display the PDF
+    res.json({
+      fileId:   req.file.secure_url,
+      fileUrl:  req.file.secure_url,
+      fileName: req.file.originalname,
+      publicId: req.file.public_id,
+    });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

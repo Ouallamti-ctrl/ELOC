@@ -24,6 +24,19 @@ const toPlain = (docs) => (docs||[]).map(d => {
   return obj;
 });
 
+// Helper: normalize single mongoose doc to plain object with string IDs
+const toPlainOne = (d) => {
+  if (!d) return null;
+  const obj = typeof d.toObject === 'function' ? d.toObject() : { ...d };
+  obj.id  = obj._id?.toString() || obj.id;
+  obj._id = obj.id;
+  for (const key of Object.keys(obj)) {
+    const v = obj[key];
+    if (v && typeof v === 'object' && !Array.isArray(v) && v._id) obj[key] = v._id.toString();
+    if (Array.isArray(v)) obj[key] = v.map(i => i?._id ? i._id.toString() : (i?.toString ? i.toString() : i));
+  }
+  return obj;
+};
 
 // ── GROUPS ──────────────────────────────────────────────────────────────────
 export const groupRouter = express.Router();
@@ -47,14 +60,14 @@ groupRouter.get('/', async (req, res) => {
 groupRouter.post('/', adminOnly, async (req, res) => {
   try {
     const group = await Group.create(req.body);
-    res.status(201).json(group);
+    res.status(201).json(toPlainOne(group));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 groupRouter.put('/:id', adminOnly, async (req, res) => {
   try {
     const group = await Group.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(group);
+    res.json(toPlainOne(group));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -99,14 +112,14 @@ sessionRouter.get('/', async (req, res) => {
 sessionRouter.post('/', teacherOrAdmin, async (req, res) => {
   try {
     const session = await Session.create(req.body);
-    res.status(201).json(session);
+    res.status(201).json(toPlainOne(session));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 sessionRouter.put('/:id', teacherOrAdmin, async (req, res) => {
   try {
     const session = await Session.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(session);
+    res.json(toPlainOne(session));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -144,14 +157,14 @@ paymentRouter.get('/', async (req, res) => {
 paymentRouter.post('/', adminOnly, async (req, res) => {
   try {
     const payment = await Payment.create(req.body);
-    res.status(201).json(payment);
+    res.status(201).json(toPlainOne(payment));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 paymentRouter.put('/:id', adminOnly, async (req, res) => {
   try {
     const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(payment);
+    res.json(toPlainOne(payment));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -229,14 +242,14 @@ lessonRouter.get('/', async (req, res) => {
 lessonRouter.post('/', teacherOrAdmin, async (req, res) => {
   try {
     const lesson = await Lesson.create({ ...req.body, teacherId: req.user._id });
-    res.status(201).json(lesson);
+    res.status(201).json(toPlainOne(lesson));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 lessonRouter.put('/:id', teacherOrAdmin, async (req, res) => {
   try {
     const lesson = await Lesson.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(lesson);
+    res.json(toPlainOne(lesson));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

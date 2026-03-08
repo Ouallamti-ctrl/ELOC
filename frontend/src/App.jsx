@@ -1104,7 +1104,7 @@ function RecurringSessionForm({ groups, teachers, onSave, onClose, defaultTeache
 
   const calcPreview = () => {
     if (!startDate || selectedDays.length === 0) return;
-    const config = { title: title || "Session", groupId: Number(groupId), teacherId: Number(teacherId), startDate, startTime, endTime, duration, recurringDays: selectedDays, endType, endDate, repeatWeeks, seriesId: "preview" };
+    const config = { title: title || "Session", groupId: groupId, teacherId: teacherId, startDate, startTime, endTime, duration, recurringDays: selectedDays, endType, endDate, repeatWeeks, seriesId: "preview" };
     const sess = generateRecurringSessions(config, []);
     setPreview(sess);
   };
@@ -1120,13 +1120,13 @@ function RecurringSessionForm({ groups, teachers, onSave, onClose, defaultTeache
     const modeFields = { sessionMode, meetingLink: sessionMode === "online" ? meetingLink : null };
 
     if (type === "one-time") {
-      onSave([{ id: Date.now() + Math.random(), title, groupId: Number(groupId), teacherId: Number(teacherId), date: startDate, time: startTime, endTime, duration, status: "upcoming", notes, attendance: {}, isCancelled: false, seriesId: null, ...modeFields }], null);
+      onSave([{ id: Date.now() + Math.random(), title, groupId: groupId, teacherId: teacherId, date: startDate, time: startTime, endTime, duration, status: "upcoming", notes, attendance: {}, isCancelled: false, seriesId: null, ...modeFields }], null);
     } else {
       const seriesId = "series-" + Date.now();
-      const config = { title, groupId: Number(groupId), teacherId: Number(teacherId), startDate, startTime, endTime, duration, recurringDays: selectedDays, endType, endDate, repeatWeeks, seriesId };
-      const group = groups.find(g => g.id === Number(groupId));
+      const config = { title, groupId: groupId, teacherId: teacherId, startDate, startTime, endTime, duration, recurringDays: selectedDays, endType, endDate, repeatWeeks, seriesId };
+      const group = groups.find(g => g.id === groupId);
       const generated = generateRecurringSessions(config, []).map(s => ({ ...s, ...modeFields }));
-      const seriesMeta = { id: seriesId, title, groupId: Number(groupId), teacherId: Number(teacherId), startDate, startTime, endTime, duration, recurringDays: selectedDays, endType, endDate, repeatWeeks, paused: false, notes, ...modeFields };
+      const seriesMeta = { id: seriesId, title, groupId: groupId, teacherId: teacherId, startDate, startTime, endTime, duration, recurringDays: selectedDays, endType, endDate, repeatWeeks, paused: false, notes, ...modeFields };
       onSave(generated, seriesMeta);
     }
   };
@@ -1173,7 +1173,7 @@ function RecurringSessionForm({ groups, teachers, onSave, onClose, defaultTeache
           <label>Group *</label>
           <select value={groupId} onChange={e => {
             setGroupId(e.target.value);
-            const g = groups.find(g => g.id === Number(e.target.value));
+            const g = groups.find(g => g.id === e.target.value);
             if (g) setTeacherId(String(g.teacherId));
           }}>
             <option value="">Select group…</option>
@@ -1599,8 +1599,8 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
     teacherNotes: lesson?.teacherNotes ?? "",
   });
 
-  const book = data.books.find(b => b.id === Number(form.bookId));
-  const chapter = book?.chapters.find(c => c.id === Number(form.chapterId));
+  const book = data.books.find(b => b.id === form.bookId || b.id === String(form.bookId));
+  const chapter = book?.chapters.find(c => c.id === form.chapterId || c.id === String(form.chapterId));
 
   const saveLesson = async () => {
     const lessonData = {
@@ -3829,8 +3829,18 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
         level: form.level,
       });
       saveToken(token);
-      const cleanUser = deepClean(user);
-      setDone({ ...cleanUser, password: form.password }); // show password once
+      // Build done with ONLY safe string fields - no object spreading that could leak
+      const fullName = form.firstName.trim() + " " + form.lastName.trim();
+      setDone({
+        id:               user?.id || user?._id?.toString() || '',
+        name:             String(user?.name || fullName),
+        email:            String(user?.email || form.email),
+        role:             'student',
+        level:            String(user?.level || form.level),
+        registrationDate: String(user?.registrationDate || new Date().toISOString().split('T')[0]),
+        avatar:           String(user?.avatar || ''),
+        password:         form.password,
+      });
       setStep(3);
     } catch (e) {
       setErr(e.message || "Registration failed");
@@ -4530,6 +4540,7 @@ function StudentsPage({ data, setData }) {
         ...form,
         role: "student",
         age: Number(form.age) || null,
+        groupId: form.groupId || null,
         registrationDate: new Date().toISOString().split("T")[0],
       });
       const newS = deepClean(created);
@@ -6207,6 +6218,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
 
 // ─── TEACHER DASHBOARD ────────────────────────────────────────────────────────
 function TeacherDashboard({ user, data }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
   const myGroups = data.groups.filter(g => g.teacherId === user.id);
   const mySessions = data.sessions.filter(s => s.teacherId === user.id);
   const myStudents = data.users.filter(u => u.role === "student" && myGroups.some(g => g.id === u.groupId));
@@ -6265,6 +6277,7 @@ function TeacherDashboard({ user, data }) {
 
 // ─── STUDENT DASHBOARD ────────────────────────────────────────────────────────
 function StudentDashboard({ user, data }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
   const myGroup = data.groups.find(g => g.id === user.groupId);
   const myTeacher = myGroup ? data.users.find(u => u.id === myGroup.teacherId) : null;
   const mySessions = data.sessions.filter(s => s.groupId === user.groupId && !s.isCancelled);
@@ -8036,7 +8049,7 @@ function AdminAttendancePage({ data, setData }) {
               {Object.entries(att)
                 .sort(([,a],[,b]) => (b===true?1:0)-(a===true?1:0))
                 .map(([stuId, isPresent]) => {
-                  const st = data.users.find(u => u.id === Number(stuId));
+                  const st = data.users.find(u => u.id === stuId);
                   if (!st) return null;
                   return (
                     <div key={stuId} style={{ display:"flex", alignItems:"center", gap:12, padding:"13px 18px",
@@ -8048,7 +8061,7 @@ function AdminAttendancePage({ data, setData }) {
                         <div style={{ fontSize:11, color:"var(--text3)" }}>Level {st.level} · {groupName(st.groupId)}</div>
                       </div>
                       <div style={{ display:"flex", gap:8 }}>
-                        <button onClick={() => toggleAtt(focusSess.id, Number(stuId), true)}
+                        <button onClick={() => toggleAtt(focusSess.id, stuId, true)}
                           style={{ padding:"7px 16px", borderRadius:8, border:"2px solid",
                             borderColor:isPresent===true?"#22c55e":"var(--border2)",
                             background:isPresent===true?"rgba(34,197,94,.15)":"var(--bg3)",
@@ -8056,7 +8069,7 @@ function AdminAttendancePage({ data, setData }) {
                             fontWeight:700, fontSize:12, cursor:"pointer", transition:"all .15s", fontFamily:"var(--font)" }}>
                           ✅ Present
                         </button>
-                        <button onClick={() => toggleAtt(focusSess.id, Number(stuId), false)}
+                        <button onClick={() => toggleAtt(focusSess.id, stuId, false)}
                           style={{ padding:"7px 16px", borderRadius:8, border:"2px solid",
                             borderColor:isPresent===false?"#ef4444":"var(--border2)",
                             background:isPresent===false?"rgba(239,68,68,.15)":"var(--bg3)",

@@ -38,7 +38,11 @@ router.post('/', adminOnly, async (req, res) => {
       avatar: name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2),
       registrationDate: new Date().toISOString().split('T')[0],
     });
-    res.status(201).json(user);
+    const plain = user.toObject();
+    plain.id = plain._id.toString();
+    plain._id = plain.id;
+    delete plain.password;
+    res.status(201).json(plain);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

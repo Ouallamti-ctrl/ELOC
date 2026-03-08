@@ -1507,7 +1507,7 @@ function FileUploadWidget({ label, onFileStored, accept = ".pdf,.doc,.docx,.ppt,
     try {
       const id = await storeFile(file, bookId, lessonId);
       clearInterval(timer); setPct(100);
-      if (id) { onFileStored(id, file.name); toast(`📎 "${file.name}" uploaded`); }
+      if (id) { onFileStored(id, file.name, file); toast(`📎 "${file.name}" uploaded`); }
     } catch(e) {
       clearInterval(timer); toast("Upload failed","error");
     } finally { setUploading(false); setPct(0); }
@@ -1624,16 +1624,31 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
         const clean = deepClean(updated);
         setData(d => ({ ...d, lessons: d.lessons.map(l => l.id === lesson.id ? clean : l) }));
       } else {
-        const created = await api.lessons.create(lessonData);
+        // For new lessons: skip blob fileId (can't upload without lesson ID yet)
+        const dataToCreate = { ...lessonData };
+        const pendingFile = form._pendingFile; // raw File object if any
+        if (form.fileId && form.fileId.startsWith('blob:')) delete dataToCreate.fileId;
+        const created = await api.lessons.create(dataToCreate);
         const clean = deepClean(created);
         setData(d => ({ ...d, lessons: [...d.lessons, clean] }));
+        // If there's a pending file, upload it now that we have the lesson ID
+        if (pendingFile) {
+          try {
+            const r = await api.lessons.uploadFile(clean.id, pendingFile);
+            const url = r?.fileId || r?.fileUrl || '';
+            if (url) {
+              await api.lessons.update(clean.id, { fileId: url });
+              setData(d => ({ ...d, lessons: d.lessons.map(l => l.id === clean.id ? { ...l, fileId: url } : l) }));
+            }
+          } catch(e) { toast('Lesson saved but file upload failed - try uploading again', 'warn'); }
+        }
       }
       toast("Lesson content saved ✓");
       setEditing(false);
     } catch(e) { toast(e.message || "Failed to save lesson", "error"); }
   };
 
-  const handleMainFile = async (fileId, name) => setForm(p => ({ ...p, fileId }));
+  const handleMainFile = async (fileId, name, rawFile) => setForm(p => ({ ...p, fileId, _pendingFile: rawFile || p._pendingFile }));
   const handleExtraFile = async (fileId, name) => setForm(p => ({ ...p, extraFiles: [...p.extraFiles, fileId] }));
   const removeExtraFile = (fid) => setForm(p => ({ ...p, extraFiles: p.extraFiles.filter(x => x !== fid) }));
 
@@ -1750,13 +1765,13 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
           <label>Lesson PDF / Main Material</label>
           {form.fileId
             ? <FileRow fileId={form.fileId} label="Lesson File" onPreview={f => setPdfViewer(f)} canRemove={true} onRemove={() => setForm(p => ({ ...p, fileId: null }))} />
-            : <FileUploadWidget label="Upload lesson PDF or slides" onFileStored={handleMainFile} lessonId={editing?.id} />
+            : <FileUploadWidget label="Upload lesson PDF or slides" onFileStored={handleMainFile} lessonId={lesson?.id} />
           }
         </div>
 
         <div className="fg">
           <label>Extra Materials</label>
-          <FileUploadWidget label="Upload additional resources" onFileStored={handleExtraFile} />
+          <FileUploadWidget label="Upload additional resources" onFileStored={handleExtraFile} lessonId={lesson?.id} />
           {form.extraFiles.length > 0 && (
             <div className="mt8">
               {form.extraFiles.map(fid => (
@@ -1827,6 +1842,7 @@ function NextLessonCard({ data, user, onViewSession }) {
 
 // ─── BOOKS PAGE ───────────────────────────────────────────────────────────────
 function BooksPage({ data, setData }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
   const [showAdd, setShowAdd] = useState(false);
   const [viewBook, setViewBook] = useState(null);
   const [addChapter, setAddChapter] = useState(false);
@@ -2023,6 +2039,7 @@ function BooksPage({ data, setData }) {
 
 // ─── MATERIALS PAGE (Teacher) ─────────────────────────────────────────────────
 function MaterialsPage({ user, data, setData }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
   const [tab,       setTab]       = useState("books");
   const [pdfViewer, setPdfViewer] = useState(null);
   const [search,    setSearch]    = useState("");
@@ -5322,6 +5339,7 @@ function TeachersPage({ data, setData }) {
 
 // ─── GROUPS PAGE ──────────────────────────────────────────────────────────────
 function GroupsPage({ data, setData }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
   const [showAdd, setShowAdd] = useState(false);
   const [viewG, setViewG] = useState(null);
   const [editGroupForm, setEditGroupForm] = useState(null);
@@ -5525,7 +5543,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
     const d = new Date();
     return d.toLocaleString("default",{month:"long"})+" "+d.getFullYear();
   });
-  const [form, setForm] = useState({ studentId:"", amount:"", month:"February 2025", status:"pending", dueDate:"" });
+  const [form, setForm] = useState({ studentId:"", amount:"", month:new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"}), status:"pending", dueDate:"" });
 
   // ── period filter ─────────────────────────────────────────────────────────────
   const [period,    setPeriod]    = useState("monthly");    // daily|weekly|monthly|yearly|custom
@@ -5677,7 +5695,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
       setData(d=>({...d, payments:[...d.payments, flat]}));
       toast("Payment recorded ✅");
       setShowAdd(false);
-      setForm({studentId:"",amount:"",month:"February 2025",status:"pending",dueDate:""});
+      setForm({studentId:"",amount:"",month:new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"}),status:"pending",dueDate:""});
     } catch(e) { toast(e.message || "Failed to add payment", "error"); }
   };
 
@@ -5724,7 +5742,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
         {period==="monthly" && <input type="month" style={{minWidth:140}} value={selMonth} onChange={e=>setSelMonth(e.target.value)} />}
         {period==="yearly"  && (
           <select style={{minWidth:100}} value={selYear} onChange={e=>setSelYear(e.target.value)}>
-            {["2023","2024","2025","2026"].map(y=><option key={y}>{y}</option>)}
+            {[String(new Date().getFullYear()-2), String(new Date().getFullYear()-1), String(new Date().getFullYear()), String(new Date().getFullYear()+1)].map(y=><option key={y}>{y}</option>)}
           </select>
         )}
         {period==="custom" && (
@@ -6163,7 +6181,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
             <input type="number" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="150"/>
           </div>
           <div className="fg"><label>Month / Period</label>
-            <input value={form.month} onChange={e=>setForm(p=>({...p,month:e.target.value}))} placeholder="February 2025"/>
+            <input value={form.month} onChange={e=>setForm(p=>({...p,month:e.target.value}))} placeholder=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})/>
           </div>
           <div className="fg"><label>Due Date</label>
             <input type="date" value={form.dueDate} onChange={e=>setForm(p=>({...p,dueDate:e.target.value}))}/>
@@ -6606,7 +6624,7 @@ function Analytics({ data }) {
         </>}
         {period==="yearly"&&(
           <select style={{minWidth:100}} value={selYear} onChange={e=>setSelYear(e.target.value)}>
-            {["2023","2024","2025","2026"].map(y=><option key={y}>{y}</option>)}
+            {[String(new Date().getFullYear()-2), String(new Date().getFullYear()-1), String(new Date().getFullYear()), String(new Date().getFullYear()+1)].map(y=><option key={y}>{y}</option>)}
           </select>
         )}
         <div style={{marginLeft:"auto",fontSize:12,fontWeight:700,color:"var(--accent2)",
@@ -7531,6 +7549,7 @@ function AdminFormPanel({ form, setForm, showPw, setShowPw, onSave, onCancel, sa
 }
 
 function AdminUsersPage({ data, setData, currentUser }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
   const admins = data.users.filter(u => u.role === "admin");
 
   const [showAdd,   setShowAdd]   = useState(false);
@@ -8414,6 +8433,7 @@ function ConfettiRain() {
 }
 
 function GamesPage({ user, data, setData }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], gameScores:[], ...data };
   const [quiz,     setQuiz]     = useState(null);   // active quiz object
   const [qIdx,     setQIdx]     = useState(0);
   const [selected, setSelected] = useState(null);   // chosen option index
@@ -8761,14 +8781,17 @@ export default function App() {
     // normalize: ensure sessions have both time and startTime for compatibility
     if (item.startTime && !flat.time) flat.time = flat.startTime;
     if (item.time && !flat.startTime) flat.startTime = flat.time;
-    // fix session attendance: convert [{studentId, status}] array to {studentId: bool} object
+    // normalize attendance: ensure it's always a plain object {studentId: boolean}
     if (Array.isArray(item.attendance)) {
+      // Legacy array format: convert to object
       const attObj = {};
       item.attendance.forEach(a => {
         const sid = a.studentId?._id?.toString() || a.studentId?.toString() || a.studentId;
         if (sid) attObj[sid] = a.status === 'present' || a.status === true;
       });
       flat.attendance = attObj;
+    } else if (!item.attendance || typeof item.attendance !== 'object') {
+      flat.attendance = {};
     }
     return flat;
   });

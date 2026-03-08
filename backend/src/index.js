@@ -2,6 +2,23 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import connectDB from './config/db.js';
+
+// Simple in-memory rate limiter (no extra deps)
+function createRateLimiter({ windowMs = 60000, max = 20, message = 'Too many requests' } = {}) {
+  const store = new Map();
+  return (req, res, next) => {
+    const key = req.ip || req.connection.remoteAddress;
+    const now = Date.now();
+    const record = store.get(key) || { count: 0, resetAt: now + windowMs };
+    if (now > record.resetAt) { record.count = 0; record.resetAt = now + windowMs; }
+    record.count++;
+    store.set(key, record);
+    if (record.count > max) return res.status(429).json({ message });
+    next();
+  };
+}
+const loginLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, message: 'Too many login attempts, try again in 15 minutes' });
+const apiLimiter  = createRateLimiter({ windowMs: 60 * 1000, max: 300 });
 import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import {
@@ -28,6 +45,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/register', loginLimiter);
+app.use('/api',          apiLimiter);
 app.use('/api/auth',     authRouter);
 app.use('/api/users',    usersRouter);
 app.use('/api/groups',   groupRouter);

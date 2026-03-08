@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema({
   age:              { type: Number },
   city:             { type: String },
   level:            { type: String, enum: ['A1','A2','B1','B2','C1','C2'] },
-  groupId:          { type: mongoose.Schema.Types.ObjectId, ref: 'Group' },
+  groupId:          { type: mongoose.Schema.Types.ObjectId, ref: 'Group', index: true },
   registrationDate: { type: String },
   paymentStatus:    { type: String, enum: ['paid','pending','overdue'], default: 'pending' },
 }, { timestamps: true });

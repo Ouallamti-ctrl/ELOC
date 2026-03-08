@@ -10,6 +10,12 @@ const lessonSchema = new Schema({
   homework:     { type: String },
   homeworkDue:  { type: String },
   privateNotes: { type: String },
+  seriesId:     { type: String },
+  createdBy:    { type: String },
+  chapterId:    { type: String },
+  teacherNotes: { type: String },
+  fileId:       { type: String },   // Cloudinary URL of main lesson PDF
+  extraFiles:   [{ type: String }], // Cloudinary URLs of extra materials
   files: [{ name: String, url: String, publicId: String, size: Number, type: String }],
 }, { timestamps: true });
 export const Lesson = mongoose.model('Lesson', lessonSchema);

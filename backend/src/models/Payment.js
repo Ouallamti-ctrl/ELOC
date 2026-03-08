@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 const { Schema } = mongoose;
 const paymentSchema = new Schema({
-  studentId: { type: Schema.Types.ObjectId, ref: 'User' },
+  studentId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
   amount:    { type: Number },
   month:     { type: String },
   status:    { type: String, default: 'pending' },

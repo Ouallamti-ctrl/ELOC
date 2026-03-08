@@ -9,9 +9,22 @@ router.use(protect);
 router.get('/', async (req, res) => {
   try {
     let query = {};
-    if (req.user.role === 'student') query._id = req.user._id;
-    const users = await User.find(query).select('-password').lean().sort({ createdAt: -1 });
-    res.json(users.map(u => ({ ...u, id: u._id.toString(), _id: u._id.toString(), groupId: u.groupId?.toString() || '' })));
+    let fields = '-password';
+    if (req.user.role === 'student') {
+      // Students only see themselves
+      query._id = req.user._id;
+    } else if (req.user.role === 'teacher') {
+      // Teachers see students only (to mark attendance, see their group)
+      query.role = 'student';
+    }
+    // Admins see everyone
+    const users = await User.find(query).select(fields).lean().sort({ createdAt: -1 });
+    res.json(users.map(u => ({
+      ...u,
+      id: u._id.toString(),
+      _id: u._id.toString(),
+      groupId: u.groupId?.toString() || ''
+    })));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -53,12 +66,26 @@ router.put('/:id', async (req, res) => {
     if (req.user.role === 'student' && req.user._id.toString() !== req.params.id)
       return res.status(403).json({ message: 'Forbidden' });
 
-    // never allow password update via this route
-    delete req.body.password;
+    // Whitelist fields to prevent mass assignment / role escalation
+    const { name, email, phone, age, city, level, groupId,
+            commission, salaryType, status, avatar,
+            registrationDate, paymentStatus, notes } = req.body;
+    const allowed = { name, email, phone, age, city, level, groupId,
+                      commission, salaryType, status, avatar,
+                      registrationDate, paymentStatus, notes };
 
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true }).select('-password');
+    // Only admins can change roles
+    if (req.user.role === 'admin' && req.body.role) allowed.role = req.body.role;
+
+    // Remove undefined fields
+    Object.keys(allowed).forEach(k => allowed[k] === undefined && delete allowed[k]);
+
+    const user = await User.findByIdAndUpdate(req.params.id, allowed, { new: true }).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
+    const plain = user.toObject();
+    plain.id = plain._id.toString();
+    plain._id = plain.id;
+    res.json(plain);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

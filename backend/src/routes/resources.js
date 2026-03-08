@@ -98,12 +98,23 @@ sessionRouter.get('/', async (req, res) => {
       .sort({ date: 1, startTime: 1 });
     res.json(sessions.map(s => {
       const o = s.toObject();
+      // Normalize attendance: convert legacy array to object format
+      let att = o.attendance || {};
+      if (Array.isArray(att)) {
+        const attObj = {};
+        att.forEach(a => {
+          const sid = a.studentId?.toString();
+          if (sid) attObj[sid] = a.status === 'present' || a.status === true;
+        });
+        att = attObj;
+      }
       return {
         ...o,
-        id: o._id.toString(),
-        _id: o._id.toString(),
-        teacherId: o.teacherId?.toString() || '',
-        groupId:   o.groupId?.toString()   || '',
+        id:         o._id.toString(),
+        _id:        o._id.toString(),
+        teacherId:  o.teacherId?.toString() || '',
+        groupId:    o.groupId?.toString()   || '',
+        attendance: att,
       };
     }));
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -118,7 +129,19 @@ sessionRouter.post('/', teacherOrAdmin, async (req, res) => {
 
 sessionRouter.put('/:id', teacherOrAdmin, async (req, res) => {
   try {
-    const session = await Session.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    // Teachers can only update their own sessions
+    if (req.user.role === 'teacher') {
+      const existing = await Session.findById(req.params.id);
+      if (existing && existing.teacherId?.toString() !== req.user._id.toString())
+        return res.status(403).json({ message: 'You can only edit your own sessions' });
+    }
+    // Whitelist allowed fields for update
+    const { title, date, startTime, endTime, duration, status, notes,
+            mode, meetingLink, groupId, teacherId, attendance, isCancelled } = req.body;
+    const allowed = { title, date, startTime, endTime, duration, status, notes,
+                      mode, meetingLink, groupId, teacherId, attendance, isCancelled };
+    Object.keys(allowed).forEach(k => allowed[k] === undefined && delete allowed[k]);
+    const session = await Session.findByIdAndUpdate(req.params.id, allowed, { new: true });
     res.json(toPlainOne(session));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -128,12 +151,15 @@ sessionRouter.patch('/:id/attendance', teacherOrAdmin, async (req, res) => {
   try {
     const { studentId, present } = req.body;
     if (!studentId) return res.status(400).json({ message: 'studentId required' });
-    const key = `attendance.${studentId}`;
-    const session = await Session.findByIdAndUpdate(
-      req.params.id,
-      { $set: { [key]: present } },
-      { new: true }
-    );
+    // attendance is Mixed type - must use findById + markModified for nested changes
+    const session = await Session.findById(req.params.id);
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (!session.attendance || typeof session.attendance !== 'object' || Array.isArray(session.attendance)) {
+      session.attendance = {};
+    }
+    session.attendance[studentId] = present;
+    session.markModified('attendance'); // required for Mixed type changes
+    await session.save();
     res.json(toPlainOne(session));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -148,12 +174,13 @@ sessionRouter.delete('/:id', adminOnly, async (req, res) => {
 // PUT /api/sessions/:id/attendance — mark attendance
 sessionRouter.put('/:id/attendance', teacherOrAdmin, async (req, res) => {
   try {
-    const session = await Session.findByIdAndUpdate(
-      req.params.id,
-      { attendance: req.body.attendance, status: 'completed' },
-      { new: true }
-    );
-    res.json(session);
+    const session = await Session.findById(req.params.id);
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+    session.attendance = req.body.attendance || {};
+    session.status = 'completed';
+    session.markModified('attendance');
+    await session.save();
+    res.json(toPlainOne(session));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -197,7 +224,17 @@ bookRouter.use(protect);
 bookRouter.get('/', async (req, res) => {
   try {
     const books = await Book.find().lean();
-    res.json(books.map(b => ({ ...b, id: b._id.toString(), _id: b._id.toString(), coverColor: b.coverColor || b.color || '#f97316', assignedGroups: (b.assignedGroups||[]).map(g=>g?.toString()) })));
+    res.json(books.map(b => ({
+      ...b,
+      id:             b._id.toString(),
+      _id:            b._id.toString(),
+      coverColor:     b.coverColor || b.color || '#f97316',
+      color:          b.coverColor || b.color || '#f97316',
+      assignedGroups: (b.assignedGroups||[]).map(g=>g?.toString()),
+      fileId:         b.fileId || b.fileUrl || '',
+      fileUrl:        b.fileUrl || b.fileId || '',
+      fileName:       b.fileName || '',
+    })));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -220,12 +257,15 @@ bookRouter.put('/:id', adminOnly, async (req, res) => {
 bookRouter.post('/:id/upload', adminOnly, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const fileUrl  = req.file.path || req.file.secure_url || '';
+    const publicId = req.file.filename || req.file.public_id || '';
     const book = await Book.findByIdAndUpdate(req.params.id, {
-      fileId:   req.file.public_id,
-      fileUrl:  req.file.secure_url,
+      fileId:   fileUrl,
+      fileUrl:  fileUrl,
       fileName: req.file.originalname,
+      publicId: publicId,
     }, { new: true });
-    res.json(book);
+    res.json({ ...book.toObject(), id: book._id.toString(), fileId: fileUrl, fileUrl, fileName: book.fileName });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -268,10 +308,13 @@ lessonRouter.put('/:id', teacherOrAdmin, async (req, res) => {
 lessonRouter.post('/:id/files', teacherOrAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    // multer-storage-cloudinary uses .path for URL and .filename for publicId
+    const fileUrl  = req.file.path || req.file.secure_url || '';
+    const publicId = req.file.filename || req.file.public_id || '';
     const fileEntry = {
       name:     req.file.originalname,
-      url:      req.file.secure_url,
-      publicId: req.file.public_id,
+      url:      fileUrl,
+      publicId: publicId,
       size:     req.file.size,
       type:     req.file.mimetype,
     };
@@ -282,10 +325,10 @@ lessonRouter.post('/:id/files', teacherOrAdmin, upload.single('file'), async (re
     );
     // Return the Cloudinary URL as fileId so frontend can display the PDF
     res.json({
-      fileId:   req.file.secure_url,
-      fileUrl:  req.file.secure_url,
+      fileId:   fileUrl,
+      fileUrl:  fileUrl,
       fileName: req.file.originalname,
-      publicId: req.file.public_id,
+      publicId: publicId,
     });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });

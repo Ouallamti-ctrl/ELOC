@@ -5110,9 +5110,10 @@ function TeachersPage({ data, setData }) {
     try {
       await api.users.update(teacherId, { password });
       setData(d => ({ ...d, users: d.users.map(u => u.id === teacherId ? { ...u } : u) }));
-    toast("🔑 Password updated");
-    setResetTarget(null);
-    setNewPw("");
+      toast("🔑 Password updated");
+      setResetTarget(null);
+      setNewPw("");
+    } catch(e) { toast(e.message || "Failed to update password", "error"); }
   };
 
   const getEarnings = (tid) => {

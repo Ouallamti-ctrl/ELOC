@@ -1354,18 +1354,29 @@ function SeriesManager({ data, setData, filteredSeries }) {
     toast("Series updated");
   };
 
-  const deleteSeries = (seriesId, scope, fromDate) => {
+  const deleteSeries = async (seriesId, scope, fromDate) => {
+    try {
+      if (scope === "all") await api.series.delete(seriesId);
+      // Delete affected sessions from DB
+      const affectedSessions = data.sessions.filter(s => {
+        if (s.seriesId !== seriesId) return false;
+        if (scope === "all") return true;
+        if (scope === "future" && fromDate) return s.date >= fromDate;
+        return false;
+      });
+      await Promise.all(affectedSessions.map(s => api.sessions.delete(s.id).catch(()=>{})));
+    } catch(e) { console.error("deleteSeries API error", e); }
     setData(d => ({
       ...d,
       series: scope === "all" ? d.series.filter(s => s.id !== seriesId) : d.series,
       sessions: d.sessions.filter(s => {
         if (s.seriesId !== seriesId) return true;
         if (scope === "all") return false;
-        if (scope === "future") return s.date < fromDate || s.status === "completed";
+        if (scope === "future" && fromDate) return s.date < fromDate;
         return true;
       })
     }));
-    toast("Series sessions deleted");
+    toast("Series deleted");
   };
 
   return (
@@ -1591,13 +1602,12 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
   const book = data.books.find(b => b.id === Number(form.bookId));
   const chapter = book?.chapters.find(c => c.id === Number(form.chapterId));
 
-  const saveLesson = () => {
-    const newLesson = {
-      id: lesson?.id ?? Date.now(),
-      sessionId: session.id, // session-specific override
+  const saveLesson = async () => {
+    const lessonData = {
+      sessionId: session.id,
       seriesId: lesson?.sessionId ? null : session.seriesId,
-      bookId: Number(form.bookId) || null,
-      chapterId: Number(form.chapterId) || null,
+      bookId: form.bookId || null,
+      chapterId: form.chapterId || null,
       title: form.title,
       description: form.description,
       fileId: form.fileId,
@@ -1607,13 +1617,19 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
       teacherNotes: form.teacherNotes,
       createdBy: userId,
     };
-    if (lesson) {
-      setData(d => ({ ...d, lessons: d.lessons.map(l => l.id === lesson.id ? newLesson : l) }));
-    } else {
-      setData(d => ({ ...d, lessons: [...d.lessons, newLesson] }));
-    }
-    toast("Lesson content saved ✓");
-    setEditing(false);
+    try {
+      if (lesson?.id) {
+        const updated = await api.lessons.update(lesson.id, lessonData);
+        const clean = deepClean(updated);
+        setData(d => ({ ...d, lessons: d.lessons.map(l => l.id === lesson.id ? clean : l) }));
+      } else {
+        const created = await api.lessons.create(lessonData);
+        const clean = deepClean(created);
+        setData(d => ({ ...d, lessons: [...d.lessons, clean] }));
+      }
+      toast("Lesson content saved ✓");
+      setEditing(false);
+    } catch(e) { toast(e.message || "Failed to save lesson", "error"); }
   };
 
   const handleMainFile = async (fileId, name) => setForm(p => ({ ...p, fileId }));
@@ -2577,11 +2593,15 @@ function SessionDetailModal({ sessionId, data, setData, onClose, userRole, userI
     notes: s.notes || "",
   });
 
-  const saveSessionEdit = () => {
+  const saveSessionEdit = async () => {
     if (!editForm.title || !editForm.date || !editForm.time) { toast("Title, date and time required", "error"); return; }
-    setData(d => ({ ...d, sessions: d.sessions.map(x => x.id === s.id ? { ...x, ...editForm, groupId: Number(editForm.groupId), teacherId: Number(editForm.teacherId), duration: Number(editForm.duration) } : x) }));
-    toast("✅ Session updated");
-    setSessTab("info");
+    try {
+      const updated = await api.sessions.update(s.id, { ...editForm, groupId: editForm.groupId, teacherId: editForm.teacherId, duration: Number(editForm.duration) });
+      const clean = deepClean(updated);
+      setData(d => ({ ...d, sessions: d.sessions.map(x => x.id === s.id ? { ...x, ...clean } : x) }));
+      toast("✅ Session updated");
+    } catch(e) { toast(e.message || "Failed to update session", "error"); }
+    setEditMode(false);
   };
 
   return (
@@ -4270,11 +4290,15 @@ function StudentProfileModal({ student, data, setData, onClose, onResetPassword 
     registrationDate: freshStudent.registrationDate || "",
   });
 
-  const saveEdits = () => {
+  const saveEdits = async () => {
     if (!editForm.name || !editForm.email) { toast("Name and email required", "error"); return; }
-    setData(d => ({ ...d, users: d.users.map(u => u.id === freshStudent.id ? { ...u, ...editForm, groupId: editForm.groupId ? Number(editForm.groupId) : null, age: editForm.age ? Number(editForm.age) : null } : u) }));
-    toast("✅ Student profile updated");
-    setEditing(false);
+    try {
+      const updated = await api.users.update(freshStudent.id, { ...editForm, groupId: editForm.groupId || null, age: editForm.age ? Number(editForm.age) : null });
+      const clean = deepClean(updated);
+      setData(d => ({ ...d, users: d.users.map(u => u.id === freshStudent.id ? { ...u, ...clean } : u) }));
+      toast("✅ Student profile updated");
+      setEditing(false);
+    } catch(e) { toast(e.message || "Failed to update student", "error"); }
   };
 
   return (
@@ -4517,13 +4541,12 @@ function StudentsPage({ data, setData }) {
     } catch(e) { toast(e.message || "Failed to create student", "error"); }
   };
 
-  const removeStudent = (id) => {
-    setData(d => ({
-      ...d,
-      users: d.users.filter(u => u.id !== id),
-      sessions: d.sessions.map(s => { const a = { ...s.attendance }; delete a[id]; return { ...s, attendance: a }; })
-    }));
-    toast("Student removed");
+  const removeStudent = async (id) => {
+    try {
+      await api.users.delete(id);
+      setData(d => ({ ...d, users: d.users.filter(u => u.id !== id) }));
+      toast("Student removed");
+    } catch(e) { toast(e.message || "Failed to remove student", "error"); }
   };
 
   const resetPassword = (studentId, password) => {
@@ -4973,11 +4996,15 @@ function TeacherProfileModal({ teacher, data, setData, onClose, onResetPassword,
     status: fresh.status || "active",
   });
 
-  const saveEdits = () => {
+  const saveEdits = async () => {
     if (!editForm.name || !editForm.email) { toast("Name and email required", "error"); return; }
-    setData(d => ({ ...d, users: d.users.map(u => u.id === fresh.id ? { ...u, ...editForm, commission: Number(editForm.commission) } : u) }));
-    toast("✅ Teacher profile updated");
-    setEditing(false);
+    try {
+      const updated = await api.users.update(fresh.id, { ...editForm, commission: Number(editForm.commission) });
+      const clean = deepClean(updated);
+      setData(d => ({ ...d, users: d.users.map(u => u.id === fresh.id ? { ...u, ...clean } : u) }));
+      toast("✅ Teacher profile updated");
+      setEditing(false);
+    } catch(e) { toast(e.message || "Failed to update teacher", "error"); }
   };
 
   return (
@@ -5062,22 +5089,27 @@ function TeachersPage({ data, setData }) {
     .filter(t => statusFilter === "all" || t.status === statusFilter)
     .filter(t => t.name.toLowerCase().includes(search.toLowerCase()) || t.email?.toLowerCase().includes(search.toLowerCase()));
 
-  const addTeacher = () => {
+  const addTeacher = async () => {
     if (!form.name || !form.email) { toast("Name and email required", "error"); return; }
     if (!form.password) { toast("Password required", "error"); return; }
-    if (form.password.length < 6) { toast("Password must be at least 6 characters", "error"); return; }
+    if (form.password.length < 6) { toast("Min 6 characters for password", "error"); return; }
     if (data.users.find(u => u.email.toLowerCase() === form.email.toLowerCase())) { toast("Email already exists", "error"); return; }
-    const newT = { ...form, id: Date.now(), role: "teacher", commission: Number(form.commission) };
-    setData(d => ({ ...d, users: [...d.users, newT] }));
-    toast("✅ Teacher added!");
-    setShowAdd(false);
-    setShowCredentials(newT);
-    setForm({ name: "", email: "", phone: "", commission: 35, salaryType: "commission", status: "active", password: "" });
+    try {
+      const created = await api.users.create({ ...form, role: "teacher", commission: Number(form.commission) });
+      const newT = deepClean(created);
+      setData(d => ({ ...d, users: [...d.users, newT] }));
+      toast("✅ Teacher added!");
+      setShowAdd(false);
+      setShowCredentials({ ...newT, password: form.password });
+      setForm({ name: "", email: "", phone: "", commission: 35, salaryType: "commission", status: "active", password: "" });
+    } catch(e) { toast(e.message || "Failed to create teacher", "error"); }
   };
 
-  const resetPassword = (teacherId, password) => {
+  const resetPassword = async (teacherId, password) => {
     if (!password || password.length < 6) { toast("Password must be at least 6 characters", "error"); return; }
-    setData(d => ({ ...d, users: d.users.map(u => u.id === teacherId ? { ...u, password } : u) }));
+    try {
+      await api.users.update(teacherId, { password });
+      setData(d => ({ ...d, users: d.users.map(u => u.id === teacherId ? { ...u } : u) }));
     toast("🔑 Password updated");
     setResetTarget(null);
     setNewPw("");
@@ -5301,11 +5333,15 @@ function GroupsPage({ data, setData }) {
     } catch(e) { toast(e.message || "Failed to create group", "error"); }
   };
 
-  const saveGroup = () => {
+  const saveGroup = async () => {
     if (!editGroupForm.name || !editGroupForm.teacherId) { toast("Name and teacher required", "error"); return; }
-    setData(d => ({ ...d, groups: d.groups.map(g => g.id === viewG.id ? { ...g, ...editGroupForm, teacherId: Number(editGroupForm.teacherId), maxStudents: Number(editGroupForm.maxStudents) } : g) }));
-    toast("✅ Group updated");
-    setEditGroupForm(null);
+    try {
+      const updated = await api.groups.update(viewG.id, { ...editGroupForm, maxStudents: Number(editGroupForm.maxStudents) });
+      const clean = deepClean(updated);
+      setData(d => ({ ...d, groups: d.groups.map(g => g.id === viewG.id ? { ...g, ...clean } : g) }));
+      toast("✅ Group updated");
+      setEditGroupForm(null);
+    } catch(e) { toast(e.message || "Failed to update group", "error"); }
   };
 
   return (
@@ -7452,10 +7488,13 @@ function AdminUsersPage({ data, setData, currentUser }) {
     } catch(e) { toast(e.message || "Failed to update admin", "error"); }
   };
 
-  const deleteAdmin = () => {
+  const deleteAdmin = async () => {
     if (delTarget.id === currentUser.id) { toast("You cannot delete your own account", "error"); setDelTarget(null); return; }
-    setData(d => ({ ...d, users: d.users.filter(u => u.id !== delTarget.id) }));
-    toast("Admin user removed");
+    try {
+      await api.users.delete(delTarget.id);
+      setData(d => ({ ...d, users: d.users.filter(u => u.id !== delTarget.id) }));
+      toast("Admin user removed");
+    } catch(e) { toast(e.message || "Failed to delete", "error"); }
     setDelTarget(null);
   };
 
@@ -7572,6 +7611,7 @@ function AdminUsersPage({ data, setData, currentUser }) {
 
 // ─── ADMIN ATTENDANCE PAGE ────────────────────────────────────────────────────
 function AdminAttendancePage({ data, setData }) {
+  data = { users:[], sessions:[], groups:[], payments:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
   const students  = data.users.filter(u => u.role === "student");
   const completed = data.sessions.filter(s => s.status === "completed");
 
@@ -8609,6 +8649,15 @@ export default function App() {
         title: ch.title || '',
         order: ch.order || 0,
       }));
+    }
+    // fix session attendance: convert [{studentId, status}] array to {studentId: bool} object
+    if (Array.isArray(item.attendance)) {
+      const attObj = {};
+      item.attendance.forEach(a => {
+        const sid = a.studentId?._id?.toString() || a.studentId?.toString() || a.studentId;
+        if (sid) attObj[sid] = a.status === 'present' || a.status === true;
+      });
+      flat.attendance = attObj;
     }
     return flat;
   });

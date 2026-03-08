@@ -3,7 +3,7 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import connectDB from './config/db.js';
 import User from './models/User.js';
-import { Group } from './models/index.js';
+import { Group } from './models/Group.js';
 
 await connectDB();
 

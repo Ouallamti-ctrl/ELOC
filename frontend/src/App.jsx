@@ -6181,7 +6181,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
             <input type="number" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="150"/>
           </div>
           <div className="fg"><label>Month / Period</label>
-            <input value={form.month} onChange={e=>setForm(p=>({...p,month:e.target.value}))} placeholder=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})/>
+            <input value={form.month} onChange={e=>setForm(p=>({...p,month:e.target.value}))} placeholder={new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}/>
           </div>
           <div className="fg"><label>Due Date</label>
             <input type="date" value={form.dueDate} onChange={e=>setForm(p=>({...p,dueDate:e.target.value}))}/>

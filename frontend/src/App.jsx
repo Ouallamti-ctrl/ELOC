@@ -1118,7 +1118,7 @@ function RecurringSessionForm({ groups, teachers, onSave, onClose, defaultTeache
     if (!startDate) { toast("Start date required", "error"); return; }
     if (sessionMode === "online" && meetingLink && !isValidUrl(meetingLink)) { toast("Please enter a valid meeting URL", "error"); return; }
 
-    const modeFields = { sessionMode, meetingLink: sessionMode === "online" ? meetingLink : null };
+    const modeFields = { sessionMode, mode: sessionMode, meetingLink: sessionMode === "online" ? meetingLink : null };
 
     if (type === "one-time") {
       onSave([{ id: Date.now() + Math.random(), title, groupId: groupId, teacherId: teacherId, date: startDate, startTime: startTime, endTime, duration, status: "upcoming", notes, attendance: {}, isCancelled: false, seriesId: null, ...modeFields }], null);
@@ -1537,12 +1537,36 @@ function FileUploadWidget({ label, onFileStored, accept = ".pdf,.doc,.docx,.ppt,
 // Returns a file-like object for display. fileId can be a Cloudinary public_id or URL.
 function getFile(fileId) {
   if (!fileId) return null;
-  // If it's already a URL, use it directly
   const isUrl = typeof fileId === 'string' && (fileId.startsWith('http') || fileId.startsWith('blob'));
   const cloud = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'eloc-international';
   const dataUrl = isUrl ? fileId : `https://res.cloudinary.com/${cloud}/raw/upload/${fileId}`;
-  const name = typeof fileId === 'string' ? fileId.split('/').pop() || 'file' : 'file';
+  const name = typeof fileId === 'string' ? fileId.split('/').pop()?.split('?')[0] || 'file' : 'file';
   return { id: fileId, dataUrl, name };
+}
+
+// Cross-origin safe download: fetch the file as a blob then trigger browser download
+async function downloadFile(url, filename) {
+  try {
+    // For Cloudinary URLs inject fl_attachment for proper content-disposition
+    let fetchUrl = url;
+    if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
+      fetchUrl = url.replace('/upload/', '/upload/fl_attachment/');
+    }
+    const response = await fetch(fetchUrl);
+    if (!response.ok) throw new Error('Download failed');
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename || 'download';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+  } catch(e) {
+    // Fallback: open in new tab
+    window.open(url, '_blank');
+  }
 }
 
 // ─── FILE ROW COMPONENT ───────────────────────────────────────────────────────
@@ -1562,9 +1586,7 @@ function FileRow({ fileId, label, onPreview, onRemove, canRemove }) {
         {file && <button className="btn btn-se btn-xs" onClick={() => onPreview(file)}>👁 Preview</button>}
         {file
           ? (
-            <a href={file.dataUrl} download={name} style={{ textDecoration:"none" }}>
-              <button className="btn btn-pr btn-xs">📥 Download</button>
-            </a>
+            <button className="btn btn-pr btn-xs" onClick={() => downloadFile(file.dataUrl, name)}>📥 Download</button>
           ) : (
             <span style={{ fontSize:11, color:"var(--text3)", fontStyle:"italic" }}>Not uploaded yet</span>
           )
@@ -2607,14 +2629,14 @@ function SessionDetailModal({ sessionId, data, setData, onClose, userRole, userI
     duration: s.duration || 90,
     groupId: String(s.groupId || ""),
     teacherId: String(s.teacherId || ""),
-    sessionMode: s.sessionMode || "offline",
+    sessionMode: s.sessionMode || s.mode || "offline",
     notes: s.notes || "",
   });
 
   const saveSessionEdit = async () => {
     if (!editForm.title || !editForm.date || !editForm.startTime) { toast("Title, date and time required", "error"); return; }
     try {
-      const updated = await api.sessions.update(s.id, { ...editForm, startTime: editForm.startTime, groupId: editForm.groupId, teacherId: editForm.teacherId, duration: Number(editForm.duration) });
+      const updated = await api.sessions.update(s.id, { ...editForm, startTime: editForm.startTime, groupId: editForm.groupId, teacherId: editForm.teacherId, duration: Number(editForm.duration), mode: editForm.sessionMode || editForm.mode || "offline", sessionMode: editForm.sessionMode || editForm.mode || "offline" });
       const clean = deepClean(updated);
       setData(d => ({ ...d, sessions: d.sessions.map(x => x.id === s.id ? { ...x, ...clean } : x) }));
       toast("✅ Session updated");
@@ -2860,42 +2882,112 @@ function SessionsPage({ data, setData, userRole, userId }) {
   // ── HANDLERS ──
   const handleCreateSession = async (sessions, seriesMeta) => {
     try {
-      const created = await Promise.all(sessions.map(sess => api.sessions.create(sess)));
-      const norm = created.map(s => deepClean(s));
+      // Strip temp frontend ID before sending to backend
+      const cleaned = sessions.map(sess => {
+        const { id, _id, ...rest } = sess; // remove temp id
+        return rest;
+      });
+      const created = await Promise.all(cleaned.map(sess => api.sessions.create(sess)));
+      const norm = created.map(s => {
+        const clean = deepClean(s);
+        // Ensure mode/sessionMode compatibility
+        if (!clean.sessionMode && clean.mode) clean.sessionMode = clean.mode;
+        if (!clean.mode && clean.sessionMode) clean.mode = clean.sessionMode;
+        return clean;
+      });
       setData(d => ({ ...d,
         sessions: [...d.sessions, ...norm],
         series: seriesMeta ? [...d.series, seriesMeta] : d.series
       }));
       toast(sessions.length > 1 ? `✅ ${sessions.length} sessions created!` : "✅ Session scheduled");
     } catch(e) {
+      console.error("Session create error:", e);
       toast(e.message || "Failed to create session", "error");
     }
     setShowCreate(false);
   };
 
   const markAttendance = async (sess, studentId, present) => {
-    setData(d => ({ ...d, sessions: d.sessions.map(s => s.id === sess.id ? { ...s, attendance: { ...s.attendance, [studentId]: present } } : s) }));
+    // Mark attendance and auto-complete session so it appears in attendance overview
+    setData(d => ({ ...d, sessions: d.sessions.map(s =>
+      s.id === sess.id
+        ? { ...s, attendance: { ...s.attendance, [studentId]: present }, status: "completed" }
+        : s
+    )}));
     try {
       await api.sessions.markStudent(sess.id, studentId, present);
-    } catch(e) { console.error('Attendance save error', e); }
+      // Also ensure session is marked completed so attendance page can find it
+      if (sess.status !== "completed") {
+        await api.sessions.update(sess.id, { status: "completed" });
+      }
+    } catch(e) {
+      console.error('Attendance save error', e);
+      toast('Failed to save attendance - please try again', 'error');
+    }
   };
-  const completeSession = (sess) => {
+  const completeSession = async (sess) => {
     setData(d => ({ ...d, sessions: d.sessions.map(s => s.id === sess.id ? { ...s, status: "completed" } : s) }));
     setViewSess(s => s ? { ...s, status: "completed" } : s);
-    toast("Session completed ✓");
+    try {
+      await api.sessions.update(sess.id, { status: "completed" });
+      toast("Session completed ✅");
+    } catch(e) {
+      toast("Completed locally. Sync error: " + (e.message || ""), "warn");
+    }
   };
-  const cancelSession = (scope, sess) => {
+  const cancelSession = async (scope, sess) => {
+    // Optimistic local update first
     setData(d => ({ ...d, sessions: d.sessions.map(s => {
       if (scope === "this" && s.id === sess.id) return { ...s, status: "cancelled", isCancelled: true };
       if (scope === "future" && s.seriesId === sess.seriesId && s.date >= sess.date) return { ...s, status: "cancelled", isCancelled: true };
       if (scope === "all" && s.seriesId === sess.seriesId) return { ...s, status: "cancelled", isCancelled: true };
       return s;
     })}));
-    toast("Session(s) cancelled"); setViewSess(null); setScopePicker(null);
+    setViewSess(null); setScopePicker(null);
+    // Persist to backend - find all affected sessions and update each
+    try {
+      const allSessions = (() => {
+        // Get current sessions from the data ref at time of call
+        return [sess]; // will be rebuilt below using data
+      })();
+      // Build the list of IDs to cancel based on scope
+      const toCancel = [];
+      if (scope === "this") {
+        toCancel.push(sess.id);
+      } else {
+        // For "future" and "all" we need to update multiple sessions
+        // We'll do this by sending a batch update
+      }
+      if (scope === "this" || !sess.seriesId) {
+        await api.sessions.update(sess.id, { status: "cancelled", isCancelled: true });
+      } else {
+        // For series cancellations, we iterate and call update for each
+        // Use setData's functional updater to get current sessions list
+        setData(d => {
+          const affected = d.sessions.filter(s =>
+            scope === "future"
+              ? (s.seriesId === sess.seriesId && s.date >= sess.date)
+              : (s.seriesId === sess.seriesId)
+          );
+          // Fire API calls for each (don't await - fire and forget, data already updated)
+          affected.forEach(s => api.sessions.update(s.id, { status: "cancelled", isCancelled: true }).catch(console.error));
+          return d; // no state change needed here, already done above
+        });
+      }
+      toast("Session(s) cancelled ✅");
+    } catch(e) {
+      toast("Cancel saved locally. Sync error: " + (e.message || ""), "warn");
+    }
   };
-  const skipDate = (sess) => {
+  const skipDate = async (sess) => {
     setData(d => ({ ...d, sessions: d.sessions.map(s => s.id === sess.id ? { ...s, status: "cancelled", isCancelled: true, isException: true } : s) }));
-    toast("Session skipped"); setViewSess(null);
+    setViewSess(null);
+    try {
+      await api.sessions.update(sess.id, { status: "cancelled", isCancelled: true, isException: true });
+      toast("Session skipped ✅");
+    } catch(e) {
+      toast("Skipped locally. Sync error: " + (e.message || ""), "warn");
+    }
   };
 
   // ── WEEK VIEW HELPERS ──
@@ -6489,14 +6581,14 @@ function TeacherEarnings({ user, data }) {
 }
 
 // ─── ANALYTICS ────────────────────────────────────────────────────────────────
-function Analytics({ data }) {
+function Analytics({ data, teacherFilter = null }) {
   // Safety: ensure all arrays exist
   data = { users:[], sessions:[], payments:[], groups:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
 
   const [tab,      setTab]      = useState("overview");
   const [period,   setPeriod]   = useState("monthly");
-  const [selMonth, setSelMonth] = useState("2026-03");
-  const [selYear,  setSelYear]  = useState("2026");
+  const [selMonth, setSelMonth] = useState(() => { const n=new Date(); return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0"); });
+  const [selYear,  setSelYear]  = useState(String(new Date().getFullYear()));
 
   // ── raw data ────────────────────────────────────────────────────────────────
   const teacherGroupIds = teacherFilter
@@ -6504,7 +6596,8 @@ function Analytics({ data }) {
     : null;
   const students  = data.users.filter(u => u.role === "student" && (!teacherGroupIds || teacherGroupIds.includes(u.groupId)));
   const teachers  = data.users.filter(u => u.role === "teacher");
-  const completed = data.sessions.filter(s => s.status === "completed");
+  // Show sessions that are completed OR have attendance recorded
+  const completed = data.sessions.filter(s => s.status === "completed" || Object.keys(s.attendance || {}).length > 0);
   const upcoming  = data.sessions.filter(s => s.status === "upcoming");
 
   // ── period helpers ──────────────────────────────────────────────────────────
@@ -6541,7 +6634,7 @@ function Analytics({ data }) {
 
   // monthly P&L last 7 months
   const last7 = Array.from({length:7},(_,i)=>{
-    const d   = new Date(2025,1-i,1);
+    const _now = new Date(); const d = new Date(_now.getFullYear(), _now.getMonth()-i, 1);
     const key = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
     const rev = data.payments.filter(p=>p.status==="paid"&&p.date?.startsWith(key)).reduce((s,p)=>s+p.amount,0);
     const pay = data.teacherPayments.filter(p=>p.status==="paid"&&p.date?.startsWith(key)).reduce((s,p)=>s+p.amount,0);
@@ -7239,6 +7332,7 @@ function StudentAttendance({ user, data }) {
 
 // ─── STUDENT MATERIALS PAGE ───────────────────────────────────────────────────
 function StudentMaterials({ user, data }) {
+  data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
   const [pdfViewer, setPdfViewer] = useState(null);
   const [activeTab, setActiveTab] = useState("lessons");
 
@@ -7292,9 +7386,7 @@ function StudentMaterials({ user, data }) {
                   <button className="btn btn-se btn-sm" onClick={() => setPdfViewer(getFile(lesson.fileId))}>
                     👁 Preview Lesson PDF
                   </button>
-                  <a href={getFile(lesson.fileId).dataUrl} download={getFile(lesson.fileId).name}>
-                    <button className="btn btn-pr btn-sm">📥 Download</button>
-                  </a>
+                  <button className="btn btn-pr btn-sm" onClick={() => { const f=getFile(lesson.fileId); if(f) downloadFile(f.dataUrl,f.name); }}>📥 Download</button>
                 </div>
               )}
               {lesson.homework && (
@@ -7730,7 +7822,8 @@ function AdminUsersPage({ data, setData, currentUser }) {
 function AdminAttendancePage({ data, setData, teacherFilter }) {
   data = { users:[], sessions:[], groups:[], payments:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
   const students  = data.users.filter(u => u.role === "student");
-  const completed = data.sessions.filter(s => s.status === "completed");
+  // Show sessions that are completed OR have attendance recorded
+  const completed = data.sessions.filter(s => s.status === "completed" || Object.keys(s.attendance || {}).length > 0);
 
   const [view,        setView]        = useState("overview");
   const [filterGroup, setFilterGroup] = useState("all");
@@ -7780,16 +7873,22 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
   const atRisk       = filtered.filter(s => s.rate !== null && s.rate < 70).length;
 
   const toggleAtt = async (sessId, stuId, val) => {
-    // Optimistic local update
+    // Optimistic local update - also mark session as completed so it shows in overview
     setData(d => ({
       ...d,
       sessions: d.sessions.map(s =>
-        s.id === sessId ? { ...s, attendance: { ...s.attendance, [stuId]: val } } : s
+        s.id === sessId
+          ? { ...s, attendance: { ...s.attendance, [stuId]: val }, status: "completed" }
+          : s
       )
     }));
     // Persist to backend
     try {
       await api.sessions.markStudent(sessId, stuId, val);
+      // Ensure session status is completed
+      const sess = (() => { let found = null; return found; })();
+      // Mark session completed via API (idempotent)
+      api.sessions.update(sessId, { status: "completed" }).catch(() => {});
     } catch(e) {
       console.error('Attendance save error:', e);
       toast('Failed to save attendance', 'error');
@@ -8781,6 +8880,11 @@ export default function App() {
     // normalize: ensure sessions have both time and startTime for compatibility
     if (item.startTime && !flat.time) flat.time = flat.startTime;
     if (item.time && !flat.startTime) flat.startTime = flat.time;
+    // Fix mode/sessionMode field name mismatch: backend schema uses 'mode', frontend uses 'sessionMode'
+    if (flat.mode && !flat.sessionMode) flat.sessionMode = flat.mode;
+    if (flat.sessionMode && !flat.mode) flat.mode = flat.sessionMode;
+    if (!flat.sessionMode) flat.sessionMode = "offline";
+    if (!flat.mode) flat.mode = "offline";
     // normalize attendance: ensure it's always a plain object {studentId: boolean}
     if (Array.isArray(item.attendance)) {
       // Legacy array format: convert to object

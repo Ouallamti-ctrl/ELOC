@@ -28,14 +28,14 @@ const toPlain = (docs) => (docs||[]).map(d => {
 const toPlainOne = (d) => {
   if (!d) return null;
   const obj = typeof d.toObject === 'function' ? d.toObject() : { ...d };
-  obj.id  = obj._id?.toString() || obj.id;
-  obj._id = obj.id;
-  for (const key of Object.keys(obj)) {
-    const v = obj[key];
-    if (v && typeof v === 'object' && !Array.isArray(v) && v._id) obj[key] = v._id.toString();
-    if (Array.isArray(v)) obj[key] = v.map(i => i?._id ? i._id.toString() : (i?.toString ? i.toString() : i));
-  }
-  return obj;
+  // Use JSON parse/stringify to safely serialize all BSON types (ObjectId, Date, etc.)
+  const jsonSafe = JSON.parse(JSON.stringify(obj));
+  jsonSafe.id  = jsonSafe._id?.toString() || jsonSafe.id;
+  // Ensure mode/sessionMode both present
+  const resolvedMode = jsonSafe.sessionMode || jsonSafe.mode || 'offline';
+  jsonSafe.sessionMode = resolvedMode;
+  jsonSafe.mode = resolvedMode;
+  return jsonSafe;
 };
 
 // ── GROUPS ──────────────────────────────────────────────────────────────────
@@ -108,13 +108,16 @@ sessionRouter.get('/', async (req, res) => {
         });
         att = attObj;
       }
+      const resolvedMode = o.sessionMode || o.mode || "offline";
       return {
         ...o,
-        id:         o._id.toString(),
-        _id:        o._id.toString(),
-        teacherId:  o.teacherId?.toString() || '',
-        groupId:    o.groupId?.toString()   || '',
-        attendance: att,
+        id:          o._id.toString(),
+        _id:         o._id.toString(),
+        teacherId:   o.teacherId?.toString() || '',
+        groupId:     o.groupId?.toString()   || '',
+        attendance:  att,
+        mode:        resolvedMode,
+        sessionMode: resolvedMode,
       };
     }));
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -122,8 +125,15 @@ sessionRouter.get('/', async (req, res) => {
 
 sessionRouter.post('/', teacherOrAdmin, async (req, res) => {
   try {
-    const session = await Session.create(req.body);
-    res.status(201).json(toPlainOne(session));
+    // Remove any temp frontend id field, normalize mode/sessionMode
+    const { id: _tempId, _id: _tempOid, sessionMode, mode, ...rest } = req.body;
+    const resolvedMode = sessionMode || mode || "offline";
+    const session = await Session.create({ ...rest, mode: resolvedMode, sessionMode: resolvedMode });
+    const plain = toPlainOne(session);
+    // Ensure both mode fields are in response
+    if (!plain.sessionMode && plain.mode) plain.sessionMode = plain.mode;
+    if (!plain.mode && plain.sessionMode) plain.mode = plain.sessionMode;
+    res.status(201).json(plain);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -137,9 +147,14 @@ sessionRouter.put('/:id', teacherOrAdmin, async (req, res) => {
     }
     // Whitelist allowed fields for update
     const { title, date, startTime, endTime, duration, status, notes,
-            mode, meetingLink, groupId, teacherId, attendance, isCancelled } = req.body;
+            mode, sessionMode, meetingLink, groupId, teacherId, attendance,
+            isCancelled, isException } = req.body;
+    // Accept both mode and sessionMode (frontend uses sessionMode, schema uses mode)
+    const resolvedMode = sessionMode || mode || "offline";
     const allowed = { title, date, startTime, endTime, duration, status, notes,
-                      mode, meetingLink, groupId, teacherId, attendance, isCancelled };
+                      mode: resolvedMode, sessionMode: resolvedMode,
+                      meetingLink, groupId, teacherId, attendance,
+                      isCancelled, isException };
     Object.keys(allowed).forEach(k => allowed[k] === undefined && delete allowed[k]);
     const session = await Session.findByIdAndUpdate(req.params.id, allowed, { new: true });
     res.json(toPlainOne(session));
@@ -158,9 +173,16 @@ sessionRouter.patch('/:id/attendance', teacherOrAdmin, async (req, res) => {
       session.attendance = {};
     }
     session.attendance[studentId] = present;
+    // Auto-complete session when attendance is marked so it shows in overview
+    if (session.status === 'upcoming') session.status = 'completed';
     session.markModified('attendance'); // required for Mixed type changes
     await session.save();
-    res.json(toPlainOne(session));
+    const plain = toPlainOne(session);
+    // Ensure both mode fields are normalized in response
+    const resolvedMode = plain.sessionMode || plain.mode || 'offline';
+    plain.sessionMode = resolvedMode;
+    plain.mode = resolvedMode;
+    res.json(plain);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

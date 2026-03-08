@@ -12,6 +12,7 @@ const sessionSchema = new Schema({
   seriesId:     { type: String },
   lessonId:     { type: Schema.Types.ObjectId, ref: 'Lesson' },
   mode:         { type: String, default: 'offline' },
+  sessionMode:  { type: String, default: 'offline' }, // alias for frontend compatibility
   meetingLink:  { type: String },
   notes:        { type: String },
   isCancelled:  { type: Boolean, default: false },

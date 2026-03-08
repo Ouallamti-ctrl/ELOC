@@ -1,5 +1,12 @@
 import express from 'express';
-import { Group, Session, Payment, Book, Lesson, Series, Attendance, TeacherPayment } from '../models/index.js';
+import { Group }          from '../models/Group.js';
+import { Session }        from '../models/Session.js';
+import { Payment }        from '../models/Payment.js';
+import { Book }           from '../models/Book.js';
+import { Lesson }         from '../models/Lesson.js';
+import { Series }         from '../models/Series.js';
+import { TeacherPayment } from '../models/TeacherPayment.js';
+import { Attendance }     from '../models/Attendance.js';
 import { protect, adminOnly, teacherOrAdmin } from '../middleware/auth.js';
 import { upload, cloudinary } from '../config/cloudinary.js';
 
@@ -342,4 +349,3 @@ attendanceRouter.delete('/:id', async (req, res) => {
   try { await Attendance.findByIdAndDelete(req.params.id); res.json({ ok: true }); }
   catch (err) { res.status(400).json({ message: err.message }); }
 });
- 

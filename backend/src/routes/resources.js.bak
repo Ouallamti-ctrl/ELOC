@@ -1,14 +1,5 @@
-
-
 import express from 'express';
-import { Group }          from '../models/Group.js';
-import { Session }        from '../models/Session.js';
-import { Payment }        from '../models/Payment.js';
-import { Book }           from '../models/Book.js';
-import { Lesson }         from '../models/Lesson.js';
-import { Series }         from '../models/Series.js';
-import { TeacherPayment } from '../models/TeacherPayment.js';
-import { Attendance }     from '../models/Attendance.js';
+import { Group, Session, Payment, Book, Lesson, Series, Attendance, TeacherPayment } from '../models/index.js';
 import { protect, adminOnly, teacherOrAdmin } from '../middleware/auth.js';
 import { upload, cloudinary } from '../config/cloudinary.js';
 

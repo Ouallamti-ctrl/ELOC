@@ -5,6 +5,52 @@ import { api, saveToken, clearToken, hasToken } from "./api.js";
 const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const DAY_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
+
+// ─── GLOBAL DEEP CLEAN ──────────────────────────────────────────────────────
+// Converts ANY value (Mongoose doc, ObjectId, Date, nested object) to safe primitives
+const deepClean = (obj) => {
+  if (!obj) return {};
+  // If it's a Mongoose document, convert to plain JS object first
+  const raw = (typeof obj.toObject === 'function') ? obj.toObject() : obj;
+  const result = {};
+  // Use JSON parse/stringify to flatten everything, then fix IDs
+  try {
+    const jsonStr = JSON.stringify(raw, (key, val) => {
+      if (val === null || val === undefined) return val;
+      // Mongoose ObjectId: has _bsontype property
+      if (val && val._bsontype === 'ObjectId') return val.toString();
+      // Date objects
+      if (val instanceof Date) return val.toISOString().split('T')[0];
+      // Plain objects that look like ObjectIds (have toString returning hex)
+      if (val && typeof val === 'object' && typeof val.toString === 'function') {
+        const s = val.toString();
+        if (/^[0-9a-f]{24}$/.test(s)) return s;
+      }
+      return val;
+    });
+    const flat = JSON.parse(jsonStr);
+    // Normalize _id → id
+    if (flat._id) { flat.id = flat._id; delete flat._id; }
+    return flat;
+  } catch(e) {
+    // Fallback: manual extraction of known user fields
+    return {
+      id:               raw._id?.toString() || raw.id || '',
+      name:             String(raw.name || ''),
+      email:            String(raw.email || ''),
+      role:             String(raw.role || 'student'),
+      phone:            String(raw.phone || ''),
+      age:              String(raw.age || ''),
+      city:             String(raw.city || ''),
+      level:            String(raw.level || ''),
+      avatar:           String(raw.avatar || ''),
+      groupId:          String(raw.groupId || ''),
+      registrationDate: String(raw.registrationDate || ''),
+    };
+  }
+};
+
+
 function generateRecurringSessions(config, existingStudents) {
   const { title, groupId, teacherId, startTime, endTime, duration, recurringDays, endType, endDate, repeatWeeks, seriesId } = config;
   const sessions = [];
@@ -2777,17 +2823,15 @@ function SessionsPage({ data, setData, userRole, userId }) {
   const handleCreateSession = async (sessions, seriesMeta) => {
     try {
       const created = await Promise.all(sessions.map(sess => api.sessions.create(sess)));
-      const norm = created.map(s => ({ ...s, id: s._id?.toString() || s.id }));
-    } catch(e) { console.error('Session create error', e); }
-    setData(d => {
-      const enriched = sessions.map(sess => {
-        const groupStudents = d.users.filter(u => u.role === "student" && u.groupId === sess.groupId).map(u => u.id);
-        const att = {}; groupStudents.forEach(id => { att[id] = null; });
-        return { ...sess, id: sess.id || Date.now() + Math.random(), attendance: att };
-      });
-      return { ...d, sessions: [...d.sessions, ...enriched], series: seriesMeta ? [...d.series, seriesMeta] : d.series };
-    });
-    toast(sessions.length > 1 ? `✅ ${sessions.length} sessions created!` : "✅ Session scheduled");
+      const norm = created.map(s => deepClean(s));
+      setData(d => ({ ...d,
+        sessions: [...d.sessions, ...norm],
+        series: seriesMeta ? [...d.series, seriesMeta] : d.series
+      }));
+      toast(sessions.length > 1 ? `✅ ${sessions.length} sessions created!` : "✅ Session scheduled");
+    } catch(e) {
+      toast(e.message || "Failed to create session", "error");
+    }
     setShowCreate(false);
   };
 
@@ -3710,7 +3754,8 @@ function LandingPage({ onGoLogin, onGoSignup }) {
 function StudentSignupPage({ onBack, onSuccess, data, setData }) {
   const [step, setStep]   = useState(1);
   const [form, setForm]   = useState({ firstName:"", lastName:"", email:"", phone:"", age:"", city:"", level:"A2", password:"", confirmPassword:"" });
-  const [err,    setErr]  = useState({});
+  const [err,    setErr]  = useState("")
+  const [fieldErr, setFieldErr] = useState({});
   const [showPw, setShowPw] = useState(false);
   const [done,   setDone] = useState(null);
 
@@ -3745,13 +3790,13 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
       if (form.password.length < 6)                  e.password = "Minimum 6 characters";
       if (form.password !== form.confirmPassword)    e.confirmPassword = "Passwords do not match";
     }
-    setErr(e);
+    setFieldErr(e);
     return Object.keys(e).length === 0;
   };
 
   const [submitting, setSubmitting] = useState(false);
   const submit = async () => {
-    if (!validate(2)) return;
+    setErr(''); if (!validate(2)) return;
     setSubmitting(true);
     try {
       const { token, user } = await api.auth.register({
@@ -3768,13 +3813,13 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
       setDone({ ...cleanUser, password: form.password }); // show password once
       setStep(3);
     } catch (e) {
-      setErr(prev => ({ ...prev, email: e.message || "Registration failed" }));
+      setErr(e.message || "Registration failed");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const FErr = ({ k }) => err[k] ? <div style={{ fontSize:11, color:"var(--red)", marginTop:4, fontWeight:600 }}>⚠ {err[k]}</div> : null;
+  const FErr = ({ k }) => fieldErr[k] ? <div style={{ fontSize:11, color:"var(--red)", marginTop:4, fontWeight:600 }}>⚠ {fieldErr[k]}</div> : null;
 
   const StepBar = () => {
     const labels = ["Personal Info","Account Setup","Done"];
@@ -3890,7 +3935,7 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
               )}
               {step > 1 && <button className="btn btn-se" style={{ minWidth:100, justifyContent:"center" }} onClick={()=>setStep(s=>s-1)}>← Back</button>}
                 {step === 1
-                  ? <button className="btn btn-pr" style={{ flex:1, justifyContent:"center" }} onClick={()=>{ if(validate(1)) setStep(2); }}>Continue →</button>
+                  ? <button className="btn btn-pr" style={{ flex:1, justifyContent:"center" }} onClick={()=>{ if(validate(1)) { setFieldErr({}); setErr(''); setStep(2); } }}>Continue →</button>
                   : <button className="btn btn-pr" style={{ flex:1, justifyContent:"center", opacity: submitting ? 0.7 : 1 }} onClick={submit} disabled={submitting}>
                   {submitting ? <span style={{display:"flex",alignItems:"center",gap:8,justifyContent:"center"}}><span style={{width:16,height:16,border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid #fff",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}} />Creating account...</span> : "🎓 Create My Account"}
                 </button>
@@ -4451,33 +4496,25 @@ function StudentsPage({ data, setData }) {
     </th>
   );
 
-  const addStudent = () => {
+  const addStudent = async () => {
     if (!form.name || !form.email) { toast("Name and email required", "error"); return; }
     if (!form.password) { toast("Password required", "error"); return; }
     if (form.password.length < 6) { toast("Password must be at least 6 characters", "error"); return; }
     if (data.users.find(u => u.email === form.email)) { toast("Email already exists", "error"); return; }
-
-    const gId = form.groupId ? Number(form.groupId) : null;
-    const newS = {
-      ...form,
-      id: Date.now(),
-      role: "student",
-      age: Number(form.age) || null,
-      registrationDate: new Date().toISOString().split("T")[0],
-      groupId: gId,
-    };
-    setData(d => ({
-      ...d,
-      users: [...d.users, newS],
-      sessions: d.sessions.map(s => {
-        if (!gId || s.groupId !== gId || s.status !== "upcoming") return s;
-        return { ...s, attendance: { ...s.attendance, [newS.id]: null } };
-      })
-    }));
-    toast(`✅ ${form.name} added!`);
-    setShowAdd(false);
-    setShowCredentials(newS); // Show credential card immediately
-    setForm({ name: "", age: "", city: "", phone: "", email: "", level: "A2", groupId: "", paymentStatus: "pending", password: "" });
+    try {
+      const created = await api.users.create({
+        ...form,
+        role: "student",
+        age: Number(form.age) || null,
+        registrationDate: new Date().toISOString().split("T")[0],
+      });
+      const newS = deepClean(created);
+      setData(d => ({ ...d, users: [...d.users, newS] }));
+      toast(`✅ ${form.name} added!`);
+      setShowAdd(false);
+      setShowCredentials({ ...newS, password: form.password });
+      setForm({ name: "", age: "", city: "", phone: "", email: "", level: "A2", groupId: "", paymentStatus: "pending", password: "" });
+    } catch(e) { toast(e.message || "Failed to create student", "error"); }
   };
 
   const removeStudent = (id) => {
@@ -5253,11 +5290,15 @@ function GroupsPage({ data, setData }) {
     .filter(g => teacherFilter === "all" || String(g.teacherId) === teacherFilter)
     .filter(g => g.name.toLowerCase().includes(search.toLowerCase()));
 
-  const addGroup = () => {
+  const addGroup = async () => {
     if (!form.name || !form.teacherId) { toast("Name and teacher required", "error"); return; }
-    setData(d => ({ ...d, groups: [...d.groups, { ...form, id: Date.now(), teacherId: Number(form.teacherId), maxStudents: Number(form.maxStudents), status: "active" }] }));
-    toast("Group created");
-    setShowAdd(false);
+    try {
+      const created = await api.groups.create({ ...form, maxStudents: Number(form.maxStudents), status: "active" });
+      const newG = deepClean(created);
+      setData(d => ({ ...d, groups: [...d.groups, newG] }));
+      toast("Group created");
+      setShowAdd(false);
+    } catch(e) { toast(e.message || "Failed to create group", "error"); }
   };
 
   const saveGroup = () => {
@@ -8540,33 +8581,6 @@ export class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
-
-// ─── GLOBAL DEEP CLEAN ──────────────────────────────────────────────────────
-// Deep clean: convert any MongoDB/non-primitive value to safe string
-const deepClean = (obj) => {
-  if (!obj || typeof obj !== 'object') return obj;
-  const result = {};
-  for (const key of Object.keys(obj)) {
-    const val = obj[key];
-    if (val === null || val === undefined) { result[key] = val; }
-    else if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') { result[key] = val; }
-    else if (Array.isArray(val)) {
-      result[key] = val.map(v => {
-        if (!v || typeof v !== 'object') return v;
-        if (v._id) return v._id.toString(); // ObjectId or populated object
-        if (v.id) return v.id.toString();
-        return v; // keep plain objects like chapters
-      });
-    }
-    else if (typeof val === 'object') {
-      if (val._id) result[key] = val._id.toString(); // nested ObjectId
-      else result[key] = String(val); // fallback
-    }
-    else { result[key] = String(val); }
-  }
-  return result;
-};
-
 export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);

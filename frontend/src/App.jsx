@@ -78,6 +78,7 @@ function generateRecurringSessions(config, existingStudents) {
         groupId,
         teacherId,
         date: dateStr,
+        startTime: startTime,
         time: startTime,
         endTime,
         duration: Number(duration),
@@ -1120,7 +1121,7 @@ function RecurringSessionForm({ groups, teachers, onSave, onClose, defaultTeache
     const modeFields = { sessionMode, meetingLink: sessionMode === "online" ? meetingLink : null };
 
     if (type === "one-time") {
-      onSave([{ id: Date.now() + Math.random(), title, groupId: groupId, teacherId: teacherId, date: startDate, time: startTime, endTime, duration, status: "upcoming", notes, attendance: {}, isCancelled: false, seriesId: null, ...modeFields }], null);
+      onSave([{ id: Date.now() + Math.random(), title, groupId: groupId, teacherId: teacherId, date: startDate, startTime: startTime, endTime, duration, status: "upcoming", notes, attendance: {}, isCancelled: false, seriesId: null, ...modeFields }], null);
     } else {
       const seriesId = "series-" + Date.now();
       const config = { title, groupId: groupId, teacherId: teacherId, startDate, startTime, endTime, duration, recurringDays: selectedDays, endType, endDate, repeatWeeks, seriesId };
@@ -2584,7 +2585,7 @@ function SessionDetailModal({ sessionId, data, setData, onClose, userRole, userI
   const [editForm, setEditForm] = useState({
     title: s.title || "",
     date: s.date || "",
-    time: s.time || "",
+    startTime: s.startTime || "",
     endTime: s.endTime || "",
     duration: s.duration || 90,
     groupId: String(s.groupId || ""),
@@ -2594,9 +2595,9 @@ function SessionDetailModal({ sessionId, data, setData, onClose, userRole, userI
   });
 
   const saveSessionEdit = async () => {
-    if (!editForm.title || !editForm.date || !editForm.time) { toast("Title, date and time required", "error"); return; }
+    if (!editForm.title || !editForm.date || !editForm.startTime) { toast("Title, date and time required", "error"); return; }
     try {
-      const updated = await api.sessions.update(s.id, { ...editForm, groupId: editForm.groupId, teacherId: editForm.teacherId, duration: Number(editForm.duration) });
+      const updated = await api.sessions.update(s.id, { ...editForm, startTime: editForm.startTime, groupId: editForm.groupId, teacherId: editForm.teacherId, duration: Number(editForm.duration) });
       const clean = deepClean(updated);
       setData(d => ({ ...d, sessions: d.sessions.map(x => x.id === s.id ? { ...x, ...clean } : x) }));
       toast("✅ Session updated");
@@ -2639,7 +2640,7 @@ function SessionDetailModal({ sessionId, data, setData, onClose, userRole, userI
           <div className="input-row">
             <div className="fg" style={{ gridColumn: "1/-1" }}><label>Session Title *</label><input value={editForm.title} onChange={e => setEditForm(p => ({ ...p, title: e.target.value }))} /></div>
             <div className="fg"><label>Date *</label><input type="date" value={editForm.date} onChange={e => setEditForm(p => ({ ...p, date: e.target.value }))} /></div>
-            <div className="fg"><label>Start Time *</label><input type="time" value={editForm.time} onChange={e => setEditForm(p => ({ ...p, time: e.target.value }))} /></div>
+            <div className="fg"><label>Start Time *</label><input type="time" value={editForm.startTime} onChange={e => setEditForm(p => ({ ...p, startTime: e.target.value }))} /></div>
             <div className="fg"><label>End Time</label><input type="time" value={editForm.endTime} onChange={e => setEditForm(p => ({ ...p, endTime: e.target.value }))} /></div>
             <div className="fg"><label>Duration (min)</label><input type="number" value={editForm.duration} onChange={e => setEditForm(p => ({ ...p, duration: e.target.value }))} /></div>
             {userRole === "admin" && <>
@@ -3779,7 +3780,7 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
   const [showPw, setShowPw] = useState(false);
   const [done,   setDone] = useState(null);
 
-  const set = (k, v) => { setForm(f => ({ ...f, [k]:v })); setErr(e => ({ ...e, [k]:"" })); };
+  const set = (k, v) => { setForm(f => ({ ...f, [k]:v })); setFieldErr(e => ({ ...e, [k]:"" })); };
 
   const pwStrength = (pw) => {
     if (!pw) return { score:0, label:"", color:"" };
@@ -8664,6 +8665,9 @@ export default function App() {
         order: ch.order || 0,
       }));
     }
+    // normalize: ensure sessions have both time and startTime for compatibility
+    if (item.startTime && !flat.time) flat.time = flat.startTime;
+    if (item.time && !flat.startTime) flat.startTime = flat.time;
     // fix session attendance: convert [{studentId, status}] array to {studentId: bool} object
     if (Array.isArray(item.attendance)) {
       const attObj = {};

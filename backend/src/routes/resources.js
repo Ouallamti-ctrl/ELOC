@@ -149,8 +149,8 @@ paymentRouter.use(protect);
 paymentRouter.get('/', async (req, res) => {
   try {
     const filter = req.user.role === 'student' ? { studentId: req.user._id } : {};
-    const payments = await Payment.find(filter).populate('studentId', 'name email avatar');
-    res.json(payments);
+    const payments = await Payment.find(filter).sort({ createdAt: -1 });
+    res.json(toPlain(payments));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -230,12 +230,8 @@ lessonRouter.use(protect);
 lessonRouter.get('/', async (req, res) => {
   try {
     const filter = req.user.role === 'teacher' ? { teacherId: req.user._id } : {};
-    const lessons = await Lesson.find(filter)
-      .populate('teacherId', 'name avatar')
-      .populate('bookId', 'title color level')
-      .populate('sessionId', 'date startTime groupId')
-      .sort({ createdAt: -1 });
-    res.json(lessons);
+    const lessons = await Lesson.find(filter).sort({ createdAt: -1 });
+    res.json(toPlain(lessons));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

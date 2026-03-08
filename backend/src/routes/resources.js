@@ -342,3 +342,4 @@ attendanceRouter.delete('/:id', async (req, res) => {
   try { await Attendance.findByIdAndDelete(req.params.id); res.json({ ok: true }); }
   catch (err) { res.status(400).json({ message: err.message }); }
 });
+ 

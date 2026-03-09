@@ -3161,7 +3161,7 @@ function SessionDetailModal({ sessionId, data, setData, onClose, userRole, userI
   const teacher = data.users.find(u => u.id === s.teacherId);
   const series = s.seriesId ? data.series.find(sr => sr.id === s.seriesId) : null;
   const groupStudents = data.users.filter(u => u.role === "student" && u.groupId === s.groupId);
-  const presentCount = groupStudents.filter(st => s.attendance[st.id] === true).length;
+  const presentCount = groupStudents.filter(st => (s.attendance ?? {})[st.id] === true).length;
   const canEdit = userRole === "admin" || (userRole === "teacher" && s.teacherId === userId);
   const effectiveLink = getMeetingLink(s, data.series);
   const isAuthorized = userRole === "admin" || (userRole === "teacher" && s.teacherId === userId) || userRole === "student";
@@ -3328,14 +3328,14 @@ function SessionDetailModal({ sessionId, data, setData, onClose, userRole, userI
                   <div style={{ flex: 1 }}><div className="fw7 text-sm">{st.name}</div></div>
                   {canEdit && s.status !== "completed" && !s.isCancelled ? (
                     <div className="flex gap6">
-                      <button className={`btn btn-xs ${s.attendance[st.id] === true ? "btn-pr" : "btn-se"}`}
+                      <button className={`btn btn-xs ${(s.attendance ?? {})[st.id] === true ? "btn-pr" : "btn-se"}`}
                         onClick={() => onMarkAttendance(s, st.id, true)}>✓ Present</button>
-                      <button className={`btn btn-xs ${s.attendance[st.id] === false ? "btn-da" : "btn-se"}`}
+                      <button className={`btn btn-xs ${(s.attendance ?? {})[st.id] === false ? "btn-da" : "btn-se"}`}
                         onClick={() => onMarkAttendance(s, st.id, false)}>✗ Absent</button>
                     </div>
                   ) : (
-                    <Badge status={s.attendance[st.id] === true ? "paid" : s.attendance[st.id] === false ? "overdue" : "pending"}
-                      label={s.attendance[st.id] === true ? "Present" : s.attendance[st.id] === false ? "Absent" : "—"} />
+                    <Badge status={(s.attendance ?? {})[st.id] === true ? "paid" : (s.attendance ?? {})[st.id] === false ? "overdue" : "pending"}
+                      label={(s.attendance ?? {})[st.id] === true ? "Present" : (s.attendance ?? {})[st.id] === false ? "Absent" : "—"} />
                   )}
                 </div>
               ))}
@@ -3426,30 +3426,56 @@ function SessionsPage({ data, setData, userRole, userId }) {
 
   // ── HANDLERS ──
   const handleCreateSession = async (sessions, seriesMeta) => {
+    setShowCreate(false); // close modal immediately — don't wait
     try {
-      // Strip temp frontend ID before sending to backend
+      // Strip temp frontend IDs before sending to backend
       const cleaned = sessions.map(sess => {
-        const { id, _id, ...rest } = sess; // remove temp id
+        const { id, _id, ...rest } = sess;
         return rest;
       });
-      const created = await Promise.all(cleaned.map(sess => api.sessions.create(sess)));
-      const norm = created.map(s => {
-        const clean = deepClean(s);
-        // Ensure mode/sessionMode compatibility
-        if (!clean.sessionMode && clean.mode) clean.sessionMode = clean.mode;
-        if (!clean.mode && clean.sessionMode) clean.mode = clean.sessionMode;
-        return clean;
+
+      // Use allSettled so a single failure doesn't kill the whole batch
+      const results = await Promise.allSettled(cleaned.map(sess => api.sessions.create(sess)));
+
+      const succeeded = [];
+      const failed    = [];
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') succeeded.push(r.value);
+        else failed.push({ index: i, reason: r.reason?.message || 'Unknown error' });
       });
-      setData(d => ({ ...d,
-        sessions: [...d.sessions, ...norm],
-        series: seriesMeta ? [...d.series, seriesMeta] : d.series
-      }));
-      toast(sessions.length > 1 ? `✅ ${sessions.length} sessions created!` : "✅ Session scheduled");
+
+      if (succeeded.length > 0) {
+        const norm = succeeded.map(s => {
+          const clean = deepClean(s);
+          if (!clean.sessionMode && clean.mode) clean.sessionMode = clean.mode;
+          if (!clean.mode && clean.sessionMode) clean.mode = clean.sessionMode;
+          return clean;
+        });
+        setData(d => ({ ...d,
+          sessions: [...d.sessions, ...norm],
+          series: seriesMeta ? [...d.series, seriesMeta] : d.series,
+        }));
+      }
+
+      if (failed.length === 0) {
+        // All succeeded
+        toast(succeeded.length > 1
+          ? `✅ ${succeeded.length} sessions created successfully!`
+          : "✅ Session scheduled successfully!");
+      } else if (succeeded.length > 0) {
+        // Partial success
+        toast(`⚠ ${succeeded.length} created, ${failed.length} failed — check calendar`, "warn");
+        console.warn("Session create partial failures:", failed);
+      } else {
+        // All failed
+        const firstErr = failed[0]?.reason || "Failed to create session";
+        toast(firstErr, "error");
+        console.error("Session create all failed:", failed);
+      }
     } catch(e) {
-      console.error("Session create error:", e);
+      console.error("Session create unexpected error:", e);
       toast(e.message || "Failed to create session", "error");
     }
-    setShowCreate(false);
   };
 
   const markAttendance = async (sess, studentId, present) => {
@@ -5216,16 +5242,21 @@ function StudentsPage({ data, setData }) {
     } catch(e) { toast(e.message || "Failed to remove student", "error"); }
   };
 
-  const resetPassword = (studentId, password) => {
+  const resetPassword = async (studentId, password) => {
     if (!password || password.length < 6) { toast("Password must be at least 6 characters", "error"); return; }
-    setData(d => ({ ...d, users: d.users.map(u => u.id === studentId ? { ...u, password } : u) }));
-    toast("🔑 Password updated");
-    setResetTarget(null);
-    setNewPw("");
-    // If viewing the student, refresh viewSt
-    if (viewSt?.id === studentId) setViewSt(v => ({ ...v, password }));
+    const student = data.users.find(u => u.id === studentId);
+    const sname = student ? student.name : "student";
+    try {
+      await api.users.update(studentId, { password });
+      setData(d => ({ ...d, users: d.users.map(u => u.id === studentId ? { ...u, _pwUpdated: Date.now() } : u) }));
+      toast("✅ Password updated for " + sname + ".");
+      setResetTarget(null);
+      setNewPw("");
+    } catch(e) {
+      console.error("Student password reset error:", e);
+      toast(e.message || "Failed to update password — please try again", "error");
+    }
   };
-
   const strength = pwStrength(form.password);
 
   // ── quick stats for header ──────────────────────────────────────────────────
@@ -5774,13 +5805,21 @@ function TeachersPage({ data, setData }) {
 
   const resetPassword = async (teacherId, password) => {
     if (!password || password.length < 6) { toast("Password must be at least 6 characters", "error"); return; }
+    const teacher = data.users.find(u => u.id === teacherId);
+    const tname = teacher ? teacher.name : "teacher";
     try {
-      await api.users.update(teacherId, { password });
-      setData(d => ({ ...d, users: d.users.map(u => u.id === teacherId ? { ...u } : u) }));
-      toast("🔑 Password updated");
+      // Send password change to backend — pre('save') hook hashes it automatically
+      const result = await api.users.update(teacherId, { password });
+      if (!result) throw new Error("No response from server");
+      // Update local state to reflect change (password not stored in UI state)
+      setData(d => ({ ...d, users: d.users.map(u => u.id === teacherId ? { ...u, _pwUpdated: Date.now() } : u) }));
+      toast("✅ Password updated for " + tname + ". They can now log in with the new password.");
       setResetTarget(null);
       setNewPw("");
-    } catch(e) { toast(e.message || "Failed to update password", "error"); }
+    } catch(e) {
+      console.error("Password reset error:", e);
+      toast(e.message || "Failed to update password — please try again", "error");
+    }
   };
 
   const getEarnings = (tid) => {
@@ -7019,7 +7058,7 @@ function StudentDashboard({ user, data }) {
   const mySessions = data.sessions.filter(s => s.groupId === user.groupId && !s.isCancelled);
   const completed = mySessions.filter(s => s.status === "completed");
   const upcoming = mySessions.filter(s => s.status === "upcoming");
-  const attended = completed.filter(s => s.attendance[user.id] === true).length;
+  const attended = completed.filter(s => (s.attendance ?? {})[user.id] === true).length;
   const attRate = completed.length > 0 ? Math.round((attended / completed.length) * 100) : 0;
   const myPayments = data.payments.filter(p => p.studentId === user.id);
 
@@ -7081,9 +7120,9 @@ function StudentDashboard({ user, data }) {
         <div className="card">
           <div className="sh-title mb12">Recent Attendance</div>
           {completed.slice(-5).reverse().map(s => <div key={s.id} className="li">
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: s.attendance[user.id] === true ? "var(--green)" : "var(--red)", flexShrink: 0 }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: (s.attendance ?? {})[user.id] === true ? "var(--green)" : "var(--red)", flexShrink: 0 }} />
             <div style={{ flex: 1 }}><div className="fw7 text-sm">{s.title}</div><div className="text-xs muted">{s.date}</div></div>
-            <Badge status={s.attendance[user.id] === true ? "paid" : "overdue"} label={s.attendance[user.id] === true ? "Present" : "Absent"} />
+            <Badge status={(s.attendance ?? {})[user.id] === true ? "paid" : "overdue"} label={(s.attendance ?? {})[user.id] === true ? "Present" : "Absent"} />
           </div>)}
         </div>
       </div>
@@ -7199,7 +7238,7 @@ function Analytics({ data, teacherFilter = null }) {
     const rate    = sess.length ? Math.round(present/sess.length*100) : null;
     const paid    = data.payments.filter(p=>p.studentId===st.id&&p.status==="paid").reduce((s,p)=>s+p.amount,0);
     const owed    = data.payments.filter(p=>p.studentId===st.id&&p.status!=="paid").reduce((s,p)=>s+p.amount,0);
-    const streak  = (() => { let n=0; for(const s of [...sess].sort((a,b)=>b.date.localeCompare(a.date))){ if(s.attendance[st.id]===true)n++; else break; } return n; })();
+    const streak  = (() => { let n=0; for(const s of [...sess].sort((a,b)=>b.date.localeCompare(a.date))){ if((s.attendance ?? {})[st.id]===true)n++; else break; } return n; })();
     return { ...st, sess:sess.length, present, rate, paid, owed, streak };
   });
   const ranked      = [...studentStats].filter(s=>s.rate!==null).sort((a,b)=>b.rate-a.rate);
@@ -7806,7 +7845,7 @@ function Analytics({ data, teacherFilter = null }) {
                   <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
                     {g.grpStudents.map(st=>{
                       const sess = completed.filter(s=>s.groupId===g.id&&st.id in (s.attendance??{}));
-                      const rate = sess.length?Math.round(sess.filter(s=>s.attendance[st.id]===true).length/sess.length*100):null;
+                      const rate = sess.length?Math.round(sess.filter(s=>(s.attendance ?? {})[st.id]===true).length/sess.length*100):null;
                       return (
                         <div key={st.id} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 10px",
                           borderRadius:8,background:"var(--bg3)",border:"1px solid var(--border)"}}>
@@ -7852,7 +7891,7 @@ function StudentClasses({ user, data }) {
 
 function StudentAttendance({ user, data }) {
   const mySessions = data.sessions.filter(s => s.groupId === user.groupId && s.status === "completed");
-  const attended = mySessions.filter(s => s.attendance[user.id] === true).length;
+  const attended = mySessions.filter(s => (s.attendance ?? {})[user.id] === true).length;
   const rate = mySessions.length > 0 ? Math.round((attended / mySessions.length) * 100) : 0;
   return (
     <div>
@@ -7866,9 +7905,9 @@ function StudentAttendance({ user, data }) {
         <div className="sh-title mb12">Session History</div>
         {mySessions.length === 0 ? <div className="empty"><div className="empty-icon">✅</div><div className="empty-title">No sessions yet</div></div>
           : mySessions.map(s => <div key={s.id} className="li">
-            <div style={{ width: 9, height: 9, borderRadius: "50%", background: s.attendance[user.id] === true ? "var(--green)" : "var(--red)", flexShrink: 0 }} />
+            <div style={{ width: 9, height: 9, borderRadius: "50%", background: (s.attendance ?? {})[user.id] === true ? "var(--green)" : "var(--red)", flexShrink: 0 }} />
             <div style={{ flex: 1 }}><div className="fw7 text-sm">{s.title}</div><div className="text-xs muted">{s.date}</div></div>
-            <Badge status={s.attendance[user.id] === true ? "paid" : "overdue"} label={s.attendance[user.id] === true ? "✓ Present" : "✗ Absent"} />
+            <Badge status={(s.attendance ?? {})[user.id] === true ? "paid" : "overdue"} label={(s.attendance ?? {})[user.id] === true ? "✓ Present" : "✗ Absent"} />
           </div>)}
       </div>
     </div>
@@ -8908,49 +8947,70 @@ function AdminUsersPage({ data, setData, currentUser }) {
 function AdminAttendancePage({ data, setData, teacherFilter }) {
   data = { users:[], sessions:[], groups:[], payments:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
   const students  = data.users.filter(u => u.role === "student");
-  // Show sessions that are completed OR have attendance recorded
+  const teachers  = data.users.filter(u => u.role === "teacher");
+  // Sessions with attendance recorded OR completed
   const completed = data.sessions.filter(s => s.status === "completed" || Object.keys(s.attendance || {}).length > 0);
 
-  const [view,        setView]        = useState("overview");
-  const [filterGroup, setFilterGroup] = useState("all");
-  const [filterDate,  setFilterDate]  = useState("");
-  const [search,      setSearch]      = useState("");
-  const [focusStId,   setFocusStId]   = useState(null);
-  const [focusSessId, setFocusSessId] = useState(null);
+  const [view,          setView]          = useState("overview");
+  const [filterGroup,   setFilterGroup]   = useState("all");
+  const [filterDateFrom,setFilterDateFrom]= useState("");
+  const [filterDateTo,  setFilterDateTo]  = useState("");
+  const [filterTeacher, setFilterTeacher] = useState("all");
+  const [filterLevel,   setFilterLevel]   = useState("all");
+  const [filterAbsMin,  setFilterAbsMin]  = useState("");
+  const [filterStudent, setFilterStudent] = useState("all");
+  const [search,        setSearch]        = useState("");
+  const [focusStId,     setFocusStId]     = useState(null);
+  const [focusSessId,   setFocusSessId]   = useState(null);
 
-  const groupName   = gid => data.groups.find(g => g.id === gid)?.name  ?? "—";
-  const teacherName = tid => data.users.find(u => u.id === tid)?.name   ?? "—";
+  const groupName   = gid => data.groups.find(g => String(g.id) === String(gid))?.name ?? "—";
+  const teacherName = tid => data.users.find(u => String(u.id) === String(tid))?.name ?? "—";
 
   const filteredSessions = completed.filter(s => {
     if (teacherFilter && s.teacherId !== teacherFilter) return false;
-    if (filterGroup !== "all" && String(s.groupId) !== String(filterGroup)) return false;
-    if (filterDate  && s.date !== filterDate) return false;
+    if (filterTeacher !== "all" && String(s.teacherId) !== String(filterTeacher)) return false;
+    if (filterGroup   !== "all" && String(s.groupId)   !== String(filterGroup))   return false;
+    if (filterDateFrom && s.date < filterDateFrom) return false;
+    if (filterDateTo   && s.date > filterDateTo)   return false;
     return true;
   });
 
   const studentStats = students.map(st => {
-    const mySessions = filteredSessions.filter(s => st.id in (s.attendance ?? {}));
-    const present    = mySessions.filter(s => s.attendance[st.id] === true).length;
-    const absent     = mySessions.filter(s => s.attendance[st.id] === false).length;
-    const rate       = mySessions.length ? Math.round(present / mySessions.length * 100) : null;
-    const streak     = (() => {
+    // Sessions this student was enrolled in (in their group)
+    const groupSessions  = filteredSessions.filter(s => String(s.groupId) === String(st.groupId));
+    // Sessions where attendance was explicitly recorded for this student
+    const markedSessions = groupSessions.filter(s => st.id in (s.attendance ?? {}));
+    const present        = markedSessions.filter(s => s.attendance[st.id] === true).length;
+    // FIX: explicitly absent = marked false
+    const explicitAbsent = markedSessions.filter(s => s.attendance[st.id] === false).length;
+    // FIX: untracked = sessions in group but teacher never marked this student
+    const untracked      = groupSessions.length - markedSessions.length;
+    // FIX: total absences = explicitly absent + untracked (missed or not recorded)
+    const absent         = explicitAbsent + untracked;
+    // Total sessions = all group sessions for accurate rate
+    const total          = groupSessions.length;
+    const rate           = total > 0 ? Math.round(present / total * 100) : null;
+    const streak         = (() => {
       let n = 0;
-      for (const s of [...mySessions].sort((a,b) => b.date.localeCompare(a.date))) {
-        if (s.attendance[st.id] === true) n++; else break;
+      for (const s of [...markedSessions].sort((a,b) => b.date.localeCompare(a.date))) {
+        if ((s.attendance ?? {})[st.id] === true) n++; else break;
       }
       return n;
     })();
-    const lastSeen = mySessions
+    const lastSeen = markedSessions
       .filter(s => s.attendance[st.id] === true)
       .sort((a,b) => b.date.localeCompare(a.date))[0]?.date ?? null;
-    return { ...st, mySessions, present, absent, rate, streak, lastSeen };
+    return { ...st, groupSessions, markedSessions, present, explicitAbsent, untracked, absent, total, rate, streak, lastSeen };
   });
 
   const filtered = studentStats.filter(st => {
-    if (filterGroup !== "all" && st.groupId !== Number(filterGroup)) return false;
-    if (search && !st.name.toLowerCase().includes(search.toLowerCase()))      return false;
+    if (filterGroup   !== "all" && String(st.groupId) !== String(filterGroup)) return false;
+    if (filterLevel   !== "all" && st.level !== filterLevel)                    return false;
+    if (filterStudent !== "all" && st.id !== filterStudent)                     return false;
+    if (search && !st.name.toLowerCase().includes(search.toLowerCase()))        return false;
+    if (filterAbsMin  !== "" && st.absent < Number(filterAbsMin))               return false;
     return true;
-  }).sort((a,b) => (b.rate ?? -1) - (a.rate ?? -1));
+  }).sort((a,b) => (b.absent - a.absent) || ((a.rate ?? 101) - (b.rate ?? 101)));
 
   const totalPresent = filtered.reduce((a,s) => a + s.present, 0);
   const totalAbsent  = filtered.reduce((a,s) => a + s.absent,  0);
@@ -8959,7 +9019,6 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
   const atRisk       = filtered.filter(s => s.rate !== null && s.rate < 70).length;
 
   const toggleAtt = async (sessId, stuId, val) => {
-    // Optimistic local update - also mark session as completed so it shows in overview
     setData(d => ({
       ...d,
       sessions: d.sessions.map(s =>
@@ -8968,12 +9027,8 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
           : s
       )
     }));
-    // Persist to backend
     try {
       await api.sessions.markStudent(sessId, stuId, val);
-      // Ensure session status is completed
-      const sess = (() => { let found = null; return found; })();
-      // Mark session completed via API (idempotent)
       api.sessions.update(sessId, { status: "completed" }).catch(() => {});
     } catch(e) {
       console.error('Attendance save error:', e);
@@ -8981,11 +9036,19 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
     }
   };
 
+  const clearFilters = () => {
+    setFilterGroup("all"); setFilterDateFrom(""); setFilterDateTo("");
+    setFilterTeacher("all"); setFilterLevel("all"); setFilterAbsMin(""); setSearch(""); setFilterStudent("all");
+  };
+  const hasActiveFilter = filterGroup !== "all" || filterDateFrom || filterDateTo ||
+    filterTeacher !== "all" || filterLevel !== "all" || filterAbsMin !== "" || search ||
+    filterStudent !== "all";
+
   const rc  = r => r === null ? "var(--text3)"            : r >= 80 ? "#22c55e"              : r >= 60 ? "#f59e0b"              : "#ef4444";
   const rbg = r => r === null ? "var(--bg3)"              : r >= 80 ? "rgba(34,197,94,.13)"  : r >= 60 ? "rgba(245,158,11,.13)" : "rgba(239,68,68,.13)";
 
-  const focusSt   = focusStId   ? studentStats.find(s => s.id === focusStId)         : null;
-  const focusSess = focusSessId ? filteredSessions.find(s => s.id === focusSessId)   : null;
+  const focusSt   = focusStId   ? studentStats.find(s => s.id === focusStId)       : null;
+  const focusSess = focusSessId ? filteredSessions.find(s => s.id === focusSessId) : null;
 
   const TAB = ({ id, label }) => (
     <button className={"btn btn-sm " + (view===id ? "btn-pr" : "btn-se")}
@@ -9005,10 +9068,10 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
       {/* ── KPI Cards ── */}
       <div className="g4 mb16">
         {[
-          { icon:"📋", label:"Completed Sessions", val:filteredSessions.length, c:"#f97316" },
-          { icon:"✅", label:"Total Present",       val:totalPresent,            c:"#22c55e" },
-          { icon:"❌", label:"Total Absent",         val:totalAbsent,             c:"#ef4444" },
-          { icon:"⚠️", label:"At-Risk  (<70 %)",    val:atRisk,                  c:"#f59e0b" },
+          { icon:"📋", label:"Sessions Tracked",  val:filteredSessions.length, c:"#f97316" },
+          { icon:"✅", label:"Total Present",      val:totalPresent,            c:"#22c55e" },
+          { icon:"❌", label:"Total Absent",        val:totalAbsent,             c:"#ef4444" },
+          { icon:"⚠️", label:"At-Risk  (<70 %)",   val:atRisk,                  c:"#f59e0b" },
         ].map((k,i) => (
           <div key={i} className="card stat" style={{ borderColor:k.c+"33" }}>
             <div className="stat-glow" style={{ background:k.c }} />
@@ -9021,23 +9084,102 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
 
       {/* ── Filters ── */}
       <div className="card mb16" style={{ padding:"14px 16px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-          <input style={{ flex:1, minWidth:150 }} placeholder="🔍 Search student…"
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <span className="fw7" style={{ fontSize:13 }}>🔍 Filter Absences</span>
+          {hasActiveFilter && (
+            <button className="btn btn-se btn-xs" onClick={clearFilters}>✕ Clear all</button>
+          )}
+        </div>
+        {/* Row 1: search + group + teacher + level + student */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:8, marginBottom:8 }}>
+          <input placeholder="🔍 Search student…"
             value={search} onChange={e => setSearch(e.target.value)} />
-          <select style={{ minWidth:155 }} value={filterGroup}
-            onChange={e => { setFilterGroup(e.target.value); setFocusStId(null); setFocusSessId(null); }}>
+          <select value={filterGroup}
+            onChange={e => { setFilterGroup(e.target.value); setFocusStId(null); setFocusSessId(null); setFilterStudent("all"); }}>
             <option value="all">All Groups</option>
             {data.groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
           </select>
-          <input type="date" style={{ minWidth:145 }} value={filterDate}
-            onChange={e => setFilterDate(e.target.value)} />
-          {filterDate && <button className="btn btn-se btn-sm" onClick={() => setFilterDate("")}>✕ Clear</button>}
-          <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+          <select value={filterTeacher} onChange={e => setFilterTeacher(e.target.value)}>
+            <option value="all">All Teachers</option>
+            {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)}>
+            <option value="all">All Levels</option>
+            {["A1","A2","B1","B2","C1","C2"].map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+          <select value={filterStudent} onChange={e => { setFilterStudent(e.target.value); setFocusStId(e.target.value !== "all" ? e.target.value : null); }}>
+            <option value="all">All Students</option>
+            {students
+              .filter(st => filterGroup === "all" || String(st.groupId) === String(filterGroup))
+              .sort((a,b) => a.name.localeCompare(b.name))
+              .map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+          </select>
+        </div>
+        {/* Row 2: date range + min absences */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr auto", gap:8, alignItems:"center" }}>
+          <div>
+            <div className="text-xs muted mb4">From date</div>
+            <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
+          </div>
+          <div>
+            <div className="text-xs muted mb4">To date</div>
+            <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
+          </div>
+          <div>
+            <div className="text-xs muted mb4">Min absences</div>
+            <input type="number" min="0" placeholder="e.g. 3" value={filterAbsMin}
+              onChange={e => setFilterAbsMin(e.target.value)} />
+          </div>
+          <div style={{ display:"flex", gap:6, marginTop:18 }}>
             <TAB id="overview" label="📊 Matrix"     />
             <TAB id="student"  label="👨‍🎓 Students"  />
             <TAB id="session"  label="📅 Sessions"   />
           </div>
         </div>
+        {/* Active filter summary */}
+        {hasActiveFilter && (
+          <div style={{ marginTop:10, display:"flex", flexWrap:"wrap", gap:6 }}>
+            {filterGroup !== "all" && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99,
+                background:"rgba(249,115,22,.12)", color:"var(--accent2)", border:"1px solid rgba(249,115,22,.2)" }}>
+                Group: {groupName(filterGroup)}
+              </span>
+            )}
+            {filterTeacher !== "all" && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99,
+                background:"rgba(99,102,241,.12)", color:"#818cf8", border:"1px solid rgba(99,102,241,.2)" }}>
+                Teacher: {teacherName(filterTeacher)}
+              </span>
+            )}
+            {filterLevel !== "all" && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99,
+                background:"rgba(34,197,94,.12)", color:"#22c55e", border:"1px solid rgba(34,197,94,.2)" }}>
+                Level: {filterLevel}
+              </span>
+            )}
+            {filterDateFrom && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99,
+                background:"rgba(59,130,246,.12)", color:"#60a5fa", border:"1px solid rgba(59,130,246,.2)" }}>
+                From: {filterDateFrom}
+              </span>
+            )}
+            {filterDateTo && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99,
+                background:"rgba(59,130,246,.12)", color:"#60a5fa", border:"1px solid rgba(59,130,246,.2)" }}>
+                To: {filterDateTo}
+              </span>
+            )}
+            {filterAbsMin !== "" && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99,
+                background:"rgba(239,68,68,.12)", color:"#ef4444", border:"1px solid rgba(239,68,68,.2)" }}>
+                ≥{filterAbsMin} absences
+              </span>
+            )}
+            <span className="text-xs muted" style={{ alignSelf:"center" }}>
+              {filtered.length} student{filtered.length!==1?"s":""} · {filteredSessions.length} session{filteredSessions.length!==1?"s":""}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ══════════════════════════════════════════
@@ -9049,7 +9191,7 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
           <div className="card" style={{ padding:0, overflow:"hidden" }}>
             <div style={{ padding:"12px 18px", borderBottom:"1px solid var(--border)",
               display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div className="sh-title">📊 Attendance Matrix  <span style={{ fontWeight:400, color:"var(--text3)", fontSize:12 }}>— last {cols.length} sessions</span></div>
+              <div className="sh-title">📊 Attendance Matrix  <span style={{ fontWeight:400, color:"var(--text3)", fontSize:12 }}>— last {cols.length} sessions shown</span></div>
               <span style={{ fontSize:12, color:"var(--text3)" }}>Avg: <strong style={{ color:rc(avgRate) }}>{avgRate}%</strong></span>
             </div>
             <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
@@ -9151,7 +9293,7 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
                         background:"rgba(245,158,11,.12)", color:"var(--amber)", border:"1px solid rgba(245,158,11,.2)" }}>🔥 {st.streak} streak</span>}
                   </div>
                   <div style={{ fontSize:11, color:"var(--text3)", margin:"2px 0 8px" }}>
-                    {groupName(st.groupId)} · Level {st.level} · {st.mySessions.length} sessions
+                    {groupName(st.groupId)} · Level {st.level} · {st.total} sessions in group · {st.markedSessions.length} marked
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                     <div style={{ flex:1, height:6, background:"var(--bg4)", borderRadius:99, overflow:"hidden" }}>
@@ -9232,7 +9374,7 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
               <span style={{ fontSize:11, color:"var(--text3)" }}>Click status to toggle</span>
             </div>
             {[...focusSt.mySessions].sort((a,b) => b.date.localeCompare(a.date)).map(s => {
-              const present = s.attendance[focusSt.id];
+              const present = (s.attendance ?? {})[focusSt.id];
               return (
                 <div key={s.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px",
                   borderBottom:"1px solid var(--border)",

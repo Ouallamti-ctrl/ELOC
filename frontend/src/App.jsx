@@ -1526,18 +1526,9 @@ function PdfViewer({ file, onClose }) {
 
   // Build best fetch URL for Cloudinary PDFs
   // Switch resource_type raw -> image so Cloudinary serves with correct MIME
-  const buildFetchUrl = (rawUrl) => {
-    if (!rawUrl) return rawUrl;
-    if (rawUrl.includes('res.cloudinary.com')) {
-      // raw/upload → image/upload so browser gets content-type: application/pdf
-      let u = rawUrl.replace('/raw/upload/', '/image/upload/');
-      // Add fl_attachment:false so it doesn't force download
-      u = u.replace('/image/upload/', '/image/upload/fl_attachment:false/');
-      return u;
-    }
-    return rawUrl;
-  };
-  const fetchUrl = buildFetchUrl(url);
+  // For Cloudinary raw PDFs: fetch directly (raw URLs work fine with fetch)
+  // We only need the URL as-is for fetch; the ArrayBuffer approach bypasses CORS
+  const fetchUrl = url;
 
   // ── PDF.js rendering via CDN ───────────────────────────────────────────────
   useEffect(() => {
@@ -1731,42 +1722,79 @@ async function storeFile(file, bookId, lessonId) {
     const result = await api.lessons.uploadFile(lessonId, file);
     return result.fileId || result.fileUrl || result.publicId || '';
   }
-  throw new Error('No bookId or lessonId provided');
+  // No lessonId yet (new lesson being created) - return blob URL as placeholder
+  // The actual upload will happen in saveLesson after the lesson is created
+  return URL.createObjectURL(file);
 }
 
-function FileUploadWidget({ label, onFileStored, accept = ".pdf,.doc,.docx,.ppt,.pptx,.jpg,.png", bookId, lessonId }) {
+function FileUploadWidget({ label, onFileStored, accept = ".pdf,.jpg,.jpeg,.png,.doc,.docx,.ppt,.pptx", bookId, lessonId }) {
   const [uploading, setUploading] = useState(false);
-  const [pct, setPct] = useState(0);
+  const [pct,       setPct]       = useState(0);
+  const [fileName,  setFileName]  = useState(null);
 
   const handleFile = async (file) => {
     if (!file) return;
-    setUploading(true); setPct(0);
-    const timer = setInterval(() => setPct(p => Math.min(p+8, 88)), 600);
+    // Validate file type
+    const ext = file.name.split('.').pop().toLowerCase();
+    const allowed = ['pdf','jpg','jpeg','png','doc','docx','ppt','pptx','mp3','mp4'];
+    if (!allowed.includes(ext)) {
+      toast(`File type .${ext} not supported`, 'error'); return;
+    }
+    setFileName(file.name);
+    setUploading(true); setPct(10);
+    const timer = setInterval(() => setPct(p => Math.min(p + 7, 88)), 400);
     try {
-      const id = await storeFile(file, bookId, lessonId);
+      let id;
+      if (bookId || lessonId) {
+        // Has an ID - upload immediately to Cloudinary
+        id = await storeFile(file, bookId, lessonId);
+      } else {
+        // New lesson (no ID yet) - create blob URL, upload happens after save
+        id = URL.createObjectURL(file);
+      }
       clearInterval(timer); setPct(100);
-      if (id) { onFileStored(id, file.name, file); toast(`📎 "${file.name}" uploaded`); }
+      if (id) {
+        onFileStored(id, file.name, file);
+        toast(`✅ "${file.name}" ready`);
+      }
     } catch(e) {
-      clearInterval(timer); toast("Upload failed","error");
-    } finally { setUploading(false); setPct(0); }
+      clearInterval(timer);
+      setFileName(null);
+      toast(e.message || "Upload failed — please try again", "error");
+    } finally {
+      setTimeout(() => { setUploading(false); setPct(0); }, 600);
+    }
   };
 
   return (
-    <label className="upload-zone" style={{ display: "block" }}>
-      <input type="file" accept={accept} onChange={e => handleFile(e.target.files[0])} style={{ display: "none" }} />
-      {uploading
-        ? <div style={{textAlign:"center",padding:"12px 0"}}>
-            <div style={{fontSize:13,color:"var(--text2)",marginBottom:8}}>Uploading… {pct}%</div>
-            <div style={{background:"var(--bg3)",borderRadius:99,height:6,overflow:"hidden"}}>
-              <div style={{background:"var(--accent)",height:"100%",width:`${pct}%`,transition:"width 0.4s ease",borderRadius:99}}/>
-            </div>
+    <label className="upload-zone" style={{ display:"block", cursor:"pointer" }}>
+      <input type="file" accept={accept} onChange={e => { const f=e.target.files[0]; if(f) handleFile(f); e.target.value=''; }} style={{ display:"none" }} />
+      {uploading ? (
+        <div style={{ textAlign:"center", padding:"14px 0" }}>
+          <div style={{ fontSize:13, color:"var(--text2)", marginBottom:8 }}>
+            Uploading {fileName ? `"${fileName}"` : "file"}… {pct}%
           </div>
-        : <div>
-            <div style={{ fontSize: 22, marginBottom: 6 }}>📎</div>
-            <div className="text-sm fw7" style={{ color: "var(--accent2)" }}>{label ?? "Click to upload file"}</div>
-            <div className="text-xs muted mt4">PDF, Word, PowerPoint, Images</div>
+          <div style={{ background:"var(--bg3)", borderRadius:99, height:6, overflow:"hidden" }}>
+            <div style={{ background:"linear-gradient(90deg,var(--accent),var(--accent2))", height:"100%",
+              width:`${pct}%`, transition:"width 0.4s ease", borderRadius:99 }} />
           </div>
-      }
+        </div>
+      ) : fileName ? (
+        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"4px 0" }}>
+          <span style={{ fontSize:18 }}>✅</span>
+          <div>
+            <div className="text-sm fw7" style={{ color:"var(--green)" }}>File ready</div>
+            <div className="text-xs muted">{fileName}</div>
+          </div>
+          <span className="text-xs muted" style={{ marginLeft:"auto" }}>Click to change</span>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize:22, marginBottom:6 }}>📎</div>
+          <div className="text-sm fw7" style={{ color:"var(--accent2)" }}>{label ?? "Click to upload file"}</div>
+          <div className="text-xs muted mt4">PDF · PNG · JPG · DOC · PPT</div>
+        </div>
+      )}
     </label>
   );
 }
@@ -1775,18 +1803,40 @@ function FileUploadWidget({ label, onFileStored, accept = ".pdf,.doc,.docx,.ppt,
 // Returns a file-like object for display. fileId can be a Cloudinary public_id or URL.
 function getFile(fileId) {
   if (!fileId) return null;
-  const isUrl = typeof fileId === 'string' && (fileId.startsWith('http') || fileId.startsWith('blob'));
   const cloud = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'eloc-international';
-  const rawUrl = isUrl ? fileId : `https://res.cloudinary.com/${cloud}/raw/upload/${fileId}`;
-  const name = typeof fileId === 'string' ? fileId.split('/').pop()?.split('?')[0] || 'file' : 'file';
-  const ext = name.split('.').pop()?.toLowerCase();
-  const isPdf = ext === 'pdf' || rawUrl.toLowerCase().includes('.pdf');
-  // For PDFs served from Cloudinary, use the backend proxy so correct Content-Type is returned
-  const BASE_API = import.meta.env?.VITE_API_URL || 'https://eloc-backend.onrender.com/api';
-  const dataUrl = isPdf && rawUrl.includes('cloudinary.com')
-    ? `${BASE_API}/api/lessons/proxy?url=${encodeURIComponent(rawUrl)}`
-    : rawUrl;
-  return { id: fileId, dataUrl, name, type: isPdf ? 'application/pdf' : undefined, rawUrl };
+
+  // Determine name and extension first
+  const rawName = typeof fileId === 'string'
+    ? (fileId.split('/').pop()?.split('?')[0] || 'file')
+    : 'file';
+  let name = rawName;
+  try { name = decodeURIComponent(rawName); } catch(_) {}
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+
+  const isPdf = ext === 'pdf'
+    || (typeof fileId === 'string' && fileId.toLowerCase().includes('.pdf'));
+  const isImg = ['jpg','jpeg','png','gif','webp'].includes(ext);
+
+  // Build the correct Cloudinary URL
+  let dataUrl;
+  if (typeof fileId === 'string' && (fileId.startsWith('http') || fileId.startsWith('blob'))) {
+    // Already a full URL - use as-is but fix resource_type for known types
+    dataUrl = fileId;
+    // For Cloudinary raw PDFs — keep URL as-is (fl_attachment causes CORS issues)
+    // Preview via PDF.js which fetches directly, download via anchor fallback
+  } else {
+    // It's a publicId - build URL based on type
+    if (isImg) {
+      dataUrl = `https://res.cloudinary.com/${cloud}/image/upload/${fileId}`;
+    } else if (isPdf) {
+      dataUrl = `https://res.cloudinary.com/${cloud}/raw/upload/fl_attachment:false/${fileId}`;
+    } else {
+      dataUrl = `https://res.cloudinary.com/${cloud}/raw/upload/${fileId}`;
+    }
+  }
+
+  const type = isPdf ? 'application/pdf' : isImg ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream';
+  return { id: fileId, dataUrl, name, ext, isPdf, isImg, type, rawUrl: dataUrl };
 }
 
 // Cross-origin safe download: route through backend proxy for Cloudinary, or direct fetch
@@ -1794,33 +1844,48 @@ function getFile(fileId) {
 async function downloadFile(url, filename) {
   if (!url) return;
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Download failed');
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = filename || 'download';
+    a.download = filename || url.split('/').pop()?.split('?')[0] || 'download';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 8000);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
   } catch(e) {
-    window.open(url, '_blank');
+    // CORS blocked — open directly so browser handles it
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'download';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 }
 // ─── FILE ROW COMPONENT ───────────────────────────────────────────────────────
 function FileRow({ fileId, label, onPreview, onRemove, canRemove }) {
   const file = getFile(fileId);
   const name = file?.name ?? label ?? "Attached file";
-  const ext = name.split(".").pop()?.toLowerCase();
-  const iconMap = { pdf: "📄", doc: "📝", docx: "📝", ppt: "📊", pptx: "📊", jpg: "🖼", jpeg: "🖼", png: "🖼" };
-  const icon = iconMap[ext] ?? "📎";
+  const ext  = name.split(".").pop()?.toLowerCase() || "";
+  const isPdf   = ext === "pdf";
+  const isImage = ["jpg","jpeg","png","gif","webp"].includes(ext);
+  const iconMap = { pdf:"📄", doc:"📝", docx:"📝", ppt:"📊", pptx:"📊", jpg:"🖼", jpeg:"🖼", png:"🖼", gif:"🖼", webp:"🖼" };
+  const icon    = iconMap[ext] ?? "📎";
+  const clrBg   = isPdf ? "rgba(239,68,68,.12)" : isImage ? "rgba(99,102,241,.12)" : "rgba(249,115,22,.1)";
+  const clrTxt  = isPdf ? "#ef4444"             : isImage ? "#818cf8"              : "var(--accent2)";
 
   return (
-    <div className="file-row">
-      <div className="file-icon" style={{ background: "var(--glow)", color: "var(--accent2)" }}>{icon}</div>
-      <div className="file-name">{name}</div>
+    <div className="file-row" style={{ borderRadius:10, padding:"10px 12px", background:"var(--bg3)",
+      border:"1px solid var(--border)", display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+      <div className="file-icon" style={{ background:clrBg, color:clrTxt, width:34, height:34,
+        borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>{icon}</div>
+      <div className="file-name" style={{ flex:1, fontSize:13, fontWeight:600, overflow:"hidden",
+        textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name}</div>
       {file?.size && <div className="file-size">{(file.size / 1024).toFixed(0)} KB</div>}
       <div className="flex gap6">
         {file && <button className="btn btn-se btn-xs" onClick={() => onPreview(file)}>👁 Preview</button>}

@@ -14,8 +14,10 @@ const lessonSchema = new Schema({
   createdBy:    { type: String },
   chapterId:    { type: String },
   teacherNotes: { type: String },
-  fileId:       { type: String },   // Cloudinary URL of main lesson PDF
-  extraFiles:   [{ type: String }], // Cloudinary URLs of extra materials
+  fileId:          { type: String },   // Cloudinary URL of main image
+  driveLink:       { type: String },   // Google Drive link for main PDF
+  extraFiles:      [{ type: String }], // Cloudinary URLs of extra images
+  extraDriveLinks: [{ type: String }], // Google Drive links for extra PDFs
   files: [{ name: String, url: String, publicId: String, size: Number, type: String }],
 }, { timestamps: true });
 export const Lesson = mongoose.model('Lesson', lessonSchema);

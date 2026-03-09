@@ -1105,7 +1105,7 @@ function JoinButton({ session, seriesList, userRole, userId }) {
   if (!link || !isValidUrl(link)) return null;
 
   // Visibility: only teacher of this session, students in the group, or admin
-  const isTeacher = userRole === "teacher" && session.teacherId === userId;
+  const isTeacher = userRole === "teacher" && String(session.teacherId) === String(userId);
   const isStudent = userRole === "student";
   const isAdmin = userRole === "admin";
   if (!isTeacher && !isStudent && !isAdmin) return null;
@@ -2096,10 +2096,10 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
   const [pdfViewer, setPdfViewer] = useState(null);
 
   // Find lesson: first look for session-specific, then series-level
-  const lesson = data.lessons.find(l => l.sessionId === session.id)
+  const lesson = data.lessons.find(l => String(l.sessionId) === String(session.id))
     ?? (session.seriesId ? data.lessons.find(l => l.seriesId === session.seriesId && !l.sessionId) : null);
 
-  const isTeacher = userRole === "teacher" && session.teacherId === userId;
+  const isTeacher = userRole === "teacher" && String(session.teacherId) === String(userId);
   const canEdit = userRole === "admin" || isTeacher;
 
   const [form, setForm] = useState({
@@ -2361,13 +2361,13 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
 // ─── NEXT LESSON PREVIEW CARD ─────────────────────────────────────────────────
 function NextLessonCard({ data, user, onViewSession }) {
   const mySessions = data.sessions
-    .filter(s => s.groupId === user.groupId && s.status === "upcoming" && !s.isCancelled)
+    .filter(s => String(s.groupId) === String(user.groupId) && s.status === "upcoming" && !s.isCancelled)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const nextSession = mySessions[0];
   if (!nextSession) return null;
 
-  const lesson = data.lessons.find(l => l.sessionId === nextSession.id)
+  const lesson = data.lessons.find(l => String(l.sessionId) === String(nextSession.id))
     ?? (nextSession.seriesId ? data.lessons.find(l => l.seriesId === nextSession.seriesId && !l.sessionId) : null);
   if (!lesson) return null;
 
@@ -2453,7 +2453,7 @@ function BooksPage({ data, setData }) {
       <div className="g3">
         {data.books.map(book => {
           const assignedGroups = data.groups.filter(g => book.assignedGroups?.includes(g.id));
-          const usedInLessons = data.lessons.filter(l => l.bookId === book.id).length;
+          const usedInLessons = data.lessons.filter(l => String(l.bookId) === String(book.id)).length;
           return (
             <div key={book.id} className="book-card" onClick={() => setViewBook(book)}>
               <div className="book-cover" style={{ background: `linear-gradient(135deg, ${book.coverColor||"#f97316"}, ${(book.coverColor||"#f97316")}99)` }}>
@@ -2590,7 +2590,7 @@ function BooksPage({ data, setData }) {
                   <div className="chapter-num" style={{ background: `${freshBook.coverColor}25`, color: freshBook.coverColor }}>{ch.order}</div>
                   <div style={{ flex: 1 }}><div className="fw7 text-sm">{ch.title}</div></div>
                   <span className="text-xs muted">
-                    {data.lessons.filter(l => l.bookId === freshBook.id && l.chapterId === ch.id).length} lessons
+                    {data.lessons.filter(l => String(l.bookId) === String(freshBook.id) && l.chapterId === ch.id).length} lessons
                   </span>
                 </div>
               ))
@@ -2613,15 +2613,17 @@ function MaterialsPage({ user, data, setData }) {
   const [groupF,    setGroupF]    = useState("all");
 
   // ── data ──────────────────────────────────────────────────────────────────────
-  const myGroups = data.groups.filter(g => g.teacherId === user.id);
+  const myGroups = data.groups.filter(g => String(g.teacherId) === String(user.id));
   const myGroupIds = new Set(myGroups.map(g => g.id));
 
   // All sessions that belong to my groups
-  const mySessions = data.sessions.filter(s => myGroupIds.has(s.groupId));
+  // myGroupIds as strings for reliable comparison
+  const myGroupIdStrs = new Set(myGroups.map(g => String(g.id)));
+  const mySessions = data.sessions.filter(s => myGroupIdStrs.has(String(s.groupId)));
 
   // Books assigned to ANY of my groups
   const myBooks = data.books.filter(b =>
-    b.assignedGroups?.some(gid => myGroupIds.has(gid))
+    b.assignedGroups?.some(gid => myGroupIdStrs.has(String(gid)))
   );
 
   // Lessons: created by me OR linked to sessions in my groups
@@ -2647,10 +2649,16 @@ function MaterialsPage({ user, data, setData }) {
     const book    = data.books.find(b => b.id === lesson.bookId);
     const chapter = book?.chapters.find(c => c.id === lesson.chapterId);
     const files   = [
-      lesson.fileId ? getFile(lesson.fileId) : null,
-      ...(lesson.extraFiles ?? []).map(fid => getFile(fid))
+      lesson.fileId && !isGDriveLink(lesson.fileId) ? getFile(lesson.fileId) : null,
+      ...(lesson.extraFiles ?? []).filter(fid => !isGDriveLink(fid)).map(fid => getFile(fid))
     ].filter(Boolean);
-    return { lesson, session, group, book, chapter, files };
+    const driveLinks = [
+      lesson.driveLink,
+      ...(lesson.extraDriveLinks ?? []),
+      ...(lesson.fileId && isGDriveLink(lesson.fileId) ? [lesson.fileId] : []),
+      ...(lesson.extraFiles ?? []).filter(isGDriveLink),
+    ].filter(Boolean);
+    return { lesson, session, group, book, chapter, files, driveLinks };
   }).sort((a, b) => (b.session?.date ?? "").localeCompare(a.session?.date ?? ""));
 
   // Pending homework (lessons that have homework set)
@@ -2659,12 +2667,12 @@ function MaterialsPage({ user, data, setData }) {
   // Upcoming sessions with no lesson content yet
   const sessionsWithoutLesson = mySessions
     .filter(s => s.status === "upcoming")
-    .filter(s => !data.lessons.find(l => l.sessionId === s.id || (l.seriesId && l.seriesId === s.seriesId)))
+    .filter(s => !data.lessons.find(l => String(l.sessionId) === String(s.id) || (l.seriesId && l.seriesId === s.seriesId)))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // ── filter helpers ────────────────────────────────────────────────────────────
   const filteredLessons = enrichedLessons
-    .filter(x => groupF === "all" || String(x.group?.id) === groupF)
+    .filter(x => groupF === "all" || String(x.group?.id) === String(groupF))
     .filter(x => !search ||
       x.lesson.title?.toLowerCase().includes(search.toLowerCase()) ||
       x.book?.title?.toLowerCase().includes(search.toLowerCase()) ||
@@ -2672,7 +2680,7 @@ function MaterialsPage({ user, data, setData }) {
     );
 
   const filteredBooks = myBooks
-    .filter(b => groupF === "all" || b.assignedGroups?.some(gid => String(gid) === groupF))
+    .filter(b => groupF === "all" || b.assignedGroups?.some(gid => String(gid) === String(groupF)))
     .filter(b => !search ||
       b.title.toLowerCase().includes(search.toLowerCase()) ||
       b.author?.toLowerCase().includes(search.toLowerCase())
@@ -2682,7 +2690,7 @@ function MaterialsPage({ user, data, setData }) {
   const totalFiles = myLessons.reduce((n, l) =>
     n + (l.fileId ? 1 : 0) + (l.extraFiles?.length ?? 0), 0
   );
-  const booksWithPdf = myBooks.filter(b => b.fileId && getFile(b.fileId)).length;
+  const booksWithPdf = myBooks.filter(b => b.fileId && (isGDriveLink(b.fileId) || getFile(b.fileId))).length;
 
   // ── helpers ───────────────────────────────────────────────────────────────────
   const today = new Date().toISOString().split("T")[0];
@@ -2780,11 +2788,11 @@ function MaterialsPage({ user, data, setData }) {
             const file = book.fileId ? getFile(book.fileId) : null;
             const assignedToMyGroups = myGroups.filter(g => book.assignedGroups?.includes(g.id));
             const coveredChapters = new Set(
-              data.lessons.filter(l => l.bookId === book.id).map(l => l.chapterId)
+              data.lessons.filter(l => String(l.bookId) === String(book.id)).map(l => l.chapterId)
             );
             const chapPct = book.chapters.length
               ? Math.round(coveredChapters.size / book.chapters.length * 100) : 0;
-            const lessonsUsingBook = myLessons.filter(l => l.bookId === book.id).length;
+            const lessonsUsingBook = myLessons.filter(l => String(l.bookId) === String(book.id)).length;
 
             return (
               <div key={book.id} className="card mb14">
@@ -2832,7 +2840,15 @@ function MaterialsPage({ user, data, setData }) {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                    {file ? (
+                    {book.fileId && isGDriveLink(book.fileId) ? (() => {
+                      const parsed = parseGDriveLink(book.fileId);
+                      return (
+                        <>
+                          <button className="btn btn-se btn-sm" onClick={() => window.open(parsed.view, "_blank")}>👁 Preview</button>
+                          <button className="btn btn-pr btn-sm" onClick={() => window.open(parsed.download, "_blank")}>📥 Download</button>
+                        </>
+                      );
+                    })() : file ? (
                       <>
                         <button className="btn btn-se btn-sm" onClick={() => setPdfViewer(file)}>👁 Preview</button>
                         <a href={file.dataUrl} download={file.name} style={{ textDecoration: "none" }}>
@@ -2870,7 +2886,7 @@ function MaterialsPage({ user, data, setData }) {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 6 }}>
                       {book.chapters.map(ch => {
                         const done = coveredChapters.has(ch.id);
-                        const lessonCount = myLessons.filter(l => l.bookId === book.id && l.chapterId === ch.id).length;
+                        const lessonCount = myLessons.filter(l => String(l.bookId) === String(book.id) && l.chapterId === ch.id).length;
                         return (
                           <div key={ch.id} style={{
                             display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
@@ -2944,9 +2960,9 @@ function MaterialsPage({ user, data, setData }) {
                       )}
                       {isPast   && <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: "rgba(34,197,94,.1)", color: "#22c55e", border: "1px solid rgba(34,197,94,.2)" }}>✅ Done</span>}
                       {isUpcoming && <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: "var(--glow)", color: "var(--accent2)", border: "1px solid rgba(249,115,22,.2)" }}>📅 Upcoming</span>}
-                      {files.length > 0 && (
+                      {(files.length + driveLinks.length) > 0 && (
                         <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: "rgba(99,102,241,.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,.2)" }}>
-                          📎 {files.length} file{files.length > 1 ? "s" : ""}
+                          📎 {files.length + driveLinks.length} file{files.length + driveLinks.length > 1 ? "s" : ""}
                         </span>
                       )}
                     </div>
@@ -2961,13 +2977,18 @@ function MaterialsPage({ user, data, setData }) {
                 )}
 
                 {/* Files */}
-                {(lesson.fileId || lesson.extraFiles?.length > 0) && (
+                {(driveLinks.length > 0 || files.length > 0) && (
                   <div style={{ marginBottom: 12 }}>
-                    {lesson.fileId && (
-                      <FileRow fileId={lesson.fileId} label="Lesson PDF"
+                    {driveLinks.map((link, i) => (
+                      <DriveFileRow key={link+i} link={link}
+                        label={i === 0 ? "Main PDF" : `Extra Material ${i}`}
+                        canRemove={false} />
+                    ))}
+                    {lesson.fileId && !isGDriveLink(lesson.fileId) && (
+                      <FileRow fileId={lesson.fileId} label="Lesson File"
                         onPreview={f => setPdfViewer(f)} canRemove={false} />
                     )}
-                    {lesson.extraFiles?.map(fid => (
+                    {lesson.extraFiles?.filter(fid => !isGDriveLink(fid)).map(fid => (
                       <FileRow key={fid} fileId={fid}
                         onPreview={f => setPdfViewer(f)} canRemove={false} />
                     ))}
@@ -2975,7 +2996,7 @@ function MaterialsPage({ user, data, setData }) {
                 )}
 
                 {/* No files notice */}
-                {!lesson.fileId && !lesson.extraFiles?.length && (
+                {!lesson.fileId && !lesson.extraFiles?.length && !driveLinks.length && (
                   <div style={{
                     fontSize: 11, color: "var(--text3)", padding: "8px 12px",
                     borderRadius: 8, background: "var(--bg3)",
@@ -3107,8 +3128,8 @@ function MaterialsPage({ user, data, setData }) {
               </div>
 
               {sessionsWithoutLesson.map(s => {
-                const group   = data.groups.find(g => g.id === s.groupId);
-                const teacher = data.users.find(u => u.id === s.teacherId);
+                const group   = data.groups.find(g => String(g.id) === String(s.groupId));
+                const teacher = data.users.find(u => String(u.id) === String(s.teacherId));
                 const daysAway = Math.ceil((new Date(s.date) - new Date(today)) / 86400000);
 
                 return (
@@ -3157,14 +3178,14 @@ function SessionDetailModal({ sessionId, data, setData, onClose, userRole, userI
   const s = data.sessions.find(x => x.id === sessionId);
   if (!s) return null;
 
-  const group = data.groups.find(g => g.id === s.groupId);
-  const teacher = data.users.find(u => u.id === s.teacherId);
+  const group = data.groups.find(g => String(g.id) === String(s.groupId));
+  const teacher = data.users.find(u => String(u.id) === String(s.teacherId));
   const series = s.seriesId ? data.series.find(sr => sr.id === s.seriesId) : null;
-  const groupStudents = data.users.filter(u => u.role === "student" && u.groupId === s.groupId);
+  const groupStudents = data.users.filter(u => u.role === "student" && String(u.groupId) === String(s.groupId));
   const presentCount = groupStudents.filter(st => (s.attendance ?? {})[st.id] === true).length;
-  const canEdit = userRole === "admin" || (userRole === "teacher" && s.teacherId === userId);
+  const canEdit = userRole === "admin" || (userRole === "teacher" && String(s.teacherId) === String(userId));
   const effectiveLink = getMeetingLink(s, data.series);
-  const isAuthorized = userRole === "admin" || (userRole === "teacher" && s.teacherId === userId) || userRole === "student";
+  const isAuthorized = userRole === "admin" || (userRole === "teacher" && String(s.teacherId) === String(userId)) || userRole === "student";
 
   const [editForm, setEditForm] = useState({
     title: s.title || "",
@@ -3404,13 +3425,13 @@ function SessionsPage({ data, setData, userRole, userId }) {
 
   // ── SCOPED SESSIONS: teacher sees only their own ──
   const myTeacherGroups = userRole === "teacher"
-    ? data.groups.filter(g => g.teacherId === myId)
+    ? data.groups.filter(g => String(g.teacherId) === String(myId))
     : data.groups;
 
   const visibleSessions = userRole === "teacher"
-    ? data.sessions.filter(s => s.teacherId === myId)
+    ? data.sessions.filter(s => String(s.teacherId) === String(myId))
     : userRole === "student"
-      ? data.sessions.filter(s => { const u = data.users.find(x => x.id === myId); return s.groupId === u?.groupId; })
+      ? data.sessions.filter(s => { const u = data.users.find(x => x.id === myId); const gid = u?.groupId || ''; return gid && String(s.groupId) === String(gid); })
       : data.sessions;
 
   // Admin filters (applied on top of role-scoping)
@@ -3445,10 +3466,14 @@ function SessionsPage({ data, setData, userRole, userId }) {
       });
 
       if (succeeded.length > 0) {
+        // Normalize backend response same way as loadAllData does
         const norm = succeeded.map(s => {
           const clean = deepClean(s);
-          if (!clean.sessionMode && clean.mode) clean.sessionMode = clean.mode;
-          if (!clean.mode && clean.sessionMode) clean.mode = clean.sessionMode;
+          if (clean.startTime && !clean.time) clean.time = clean.startTime;
+          if (clean.time && !clean.startTime) clean.startTime = clean.time;
+          const m = clean.sessionMode || clean.mode || 'offline';
+          clean.sessionMode = m; clean.mode = m;
+          if (!clean.attendance || typeof clean.attendance !== 'object') clean.attendance = {};
           return clean;
         });
         setData(d => ({ ...d,
@@ -3775,7 +3800,7 @@ function SessionsPage({ data, setData, userRole, userId }) {
                       const endT = s.endTime || `${parseInt(s.time)+1}:00`;
                       const bot = timeToY(endT);
                       const height = Math.max(22, bot - top);
-                      const group = data.groups.find(g => g.id === s.groupId);
+                      const group = data.groups.find(g => String(g.id) === String(s.groupId));
                       // simple column offset for overlapping events
                       const prevOverlap = daySessions.slice(0, si).filter(ps => {
                         const pt = timeToY(ps.time || "09:00");
@@ -3867,8 +3892,8 @@ function SessionsPage({ data, setData, userRole, userId }) {
                     </div>
                     {sessions.map(s => {
                       const color = getGroupColor(s.groupId, data.groups);
-                      const group = data.groups.find(g => g.id === s.groupId);
-                      const teacher = data.users.find(u => u.id === s.teacherId);
+                      const group = data.groups.find(g => String(g.id) === String(s.groupId));
+                      const teacher = data.users.find(u => String(u.id) === String(s.teacherId));
                       return (
                         <div key={s.id} className={`agenda-evt ${s.isCancelled ? "cancelled" : ""}`} onClick={() => setViewSess(s)}>
                           <div className="agenda-evt-dot" style={{ background: color }} />
@@ -3905,7 +3930,7 @@ function SessionsPage({ data, setData, userRole, userId }) {
         <Modal open={!!dayDetail} onClose={() => setDayDetail(null)} title={`${new Date(dayDetail.date + "T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}`}>
           {dayDetail.sessions.map(s => {
             const color = getGroupColor(s.groupId, data.groups);
-            const group = data.groups.find(g => g.id === s.groupId);
+            const group = data.groups.find(g => String(g.id) === String(s.groupId));
             return (
               <div key={s.id} className="agenda-evt" onClick={() => { setDayDetail(null); setViewSess(s); }}>
                 <div className="agenda-evt-dot" style={{ background: color }} />
@@ -4557,7 +4582,7 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
       <div className="su-orb1" /><div className="su-orb2" />
       <div className="su-nav">
         <div className="lp-logo-box">
-          <div className="lp-logo-badge"><img src="data:image/png;base64,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" alt="ELOC" style={{width:"100%",height:"100%",objectFit:"contain"}} alt="ELOC" style={{width:"100%",height:"100%",objectFit:"contain"}} alt="ELOC" style={{ width:"100%", height:"100%", objectFit:"cover" }} /></div>
+          <div className="lp-logo-badge"><img src="data:image/png;base64,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" alt="ELOC" style={ width: 90, height: 90, objectFit: "contain", margin: "0 auto 10px", display: "block" } /></div>
           <div><div className="lp-logo-text">ELOC</div><div className="lp-logo-sub">International</div></div>
         </div>
         {step < 3 && <button className="su-back-btn" onClick={onBack}>← Back to home</button>}
@@ -4687,7 +4712,7 @@ function LoginPage({ onLogin, users, onBack }) {
       <div className="login-card">
         <div className="card" style={{ padding: 36 }}>
           <div className="login-logo">
-            <img src="data:image/png;base64,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" alt="ELOC" style={{width:"100%",height:"100%",objectFit:"contain"}} alt="ELOC" style={{width:"100%",height:"100%",objectFit:"contain"}} alt="ELOC" style={{ width: 90, height: 90, objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
+            <img src="data:image/png;base64,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" alt="ELOC" style={{ width: 90, height: 90, objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
             <div className="login-title">ELOC Manager</div>
             <div className="login-sub">Excellence in Language & Online Courses</div>
           </div>
@@ -4789,7 +4814,7 @@ function Sidebar({ user, active, onNav, open }) {
   return (
     <aside className={`sidebar ${open ? "open" : ""}`}>
       <div className="sidebar-logo">
-        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAAILUlEQVR42u2Za4xcZRnH/8/znjP37c52u0u77dbtjd7ZNi1Ea4nByKWlYKRgscWUqiGBBDVWQ1Q+iImX6BdDYqQKCikgUUHwhoR4IaDdQoXSVsrF3Q3usoXddndnZ2bPmXPO+zx+ONNSlQ92duy2ybyfZuadzDy/930u/+c5pF98H87nxTjPVwOgAdAAaAA0ABoA5/VyzsJ/iEIUgALEBKbzBEABETCBXWLnpNWhSqR1ZHD+T6ZbgWNg0gzB6yPhvrcq/YWoJcUfuzAzv8VooFQnBqq7GrUCY4AkF8vy2Ove3r8Xnx3wA6vxbmvaefKG9vUdCQ3rcw9OfX0dgMnwRFn2HJj4wUvF/vEg3jIMAhymE170jb8WHt/WLqGeWy5kBcYlMO09WL7rufHe8QCAoSqYFdDJt81JBkEVOHduIBJ10mZgzN7+9Ikn3igDcBiiiB2HCYYQCSpWZ2edOz/YXC//qQOAKpTgZMwvX/Fufer4O+XIMFQRxUfOUK2m0azL1y3N3rUxv6DFaHBuAIiCDYj5jqfHv7N/LPZ1K2CCw4gEVgDQirbUjpXZG5dlFrYaRCrBuZFGRcEOFUPd/sTwb3rLhhAXK6b4yCmTMFd3uTuXJ6+Y77hpAxtZn4gNk53+QqYKMpgI9apHhvcNeQkDUbJxGgKvmOVuXyg3rsgtWjgP+Q6YpjAMuTjMo/8kv4B0M4ihMq0AADF94vGRfUNe2iEvUkCThrYsnbFrMS5flEtccjW6t0Zz16KpzRBcQENPj72qz/+M9u0lBZxEXRicmnIOnDQ/+FLpd31lAF6kTQnesTJ3+8UtK3IldK3XLV+PFlzC8a+LhQhA5KZp/lrMXyvdm/GTW8gvwnGhOm0xMOxJPmUW592PLsnctDLT1Z5G4Xi4+uO0/XtOIuWIhSqMAzaAOXlxArG85FLZuQf3bCO40yklFDjhyayMQZJg2RZGdf11Zte9FJ86MYg09HX/T/Hmi0hmsHEXz14GFYiocfSBW/jAo8jkIXZ6boCAWVmGaOQRhyXqXMU77iZVQGPrZXwI9+6k3h5yk/CL0v833f17IgMCqerqTXjh59NcB9SCCA5DSfX6b1MiA7FgAxUVwUO3c99+5OdAFYkMBWWogglKIKL8HDjJqcfAlDoyIoANvIKu3kSLN1StFwtife3PdPRPmHEBogDEKJ3Q7i1k3KrDqCLwp+g89WspifCBT8Z17GR0gP6xj4jjQo3xIbviI3T556ECZqiASAdehg1BPJ0uBCKEvs5aQIvfDxD4XWvUSVL5BKBqXNl4M2/9JiWzUIG1MK5Wyuh5GMks1E4vACP0de5KSmShUj1OMgDo0k9JHOnLPsxd60gFEoEdGFa/qHtv45FepJun7kVTVKMEsWhbSHGOrwIQAMq10qYv/RsqsU6O65Gn8Mfv87HX6mJ9nfqBdPN7ZSgBsQIoHteRXgweRv/z1H+ARwdABBBsCDKAngMAUeW9tB7L0T/gmR/R0CtUHKHAAzFSTTCuNrXpvJXUf4ACD+xMkWGKAAoiFN4+WdlOO/vBw9izg22ERBpuGskc2EFpROYsx2fu57ZF8pcH6JEvTGclrp60k8BbR1SFTiVEVRA09Cn0kW0BCCoIKvAmZMHFuOVBzndALLV2ngOjRRUkMjR4RAcOIZZAQFyJuWudXrVbQRoFCkjLXNl8B332V5zvQFQBG335t5Do9LifprkQG0yOy5pr6NP3k41gzOnDBi0cw8QwElnMnEduCgBsCOPKsaP44U1cKaM8imQWgQfj1hYP5msb8lP1okQGA4ck18oL1kMkjuD4fig1g5pnU24mGQc2hAqMK5NjuPtaXXstjKNsqDwqc5aTRIj8Gq6iHllIhFJN/OhXrQ34stuqJogFFHFXQAQ2MC4AeesIHv4cv/2anRiWNdfARsJGbaAvPmH6ehAXxLM+F1IQUSJjHrtTXn1GL7uVFm8gJ/EfzYOO9GnPQ/zsjymsINWMVA6T4xT6sBGcJBXeBrs1uFBNMUCEU3O10/UwO/AKIJY5S9HZjbaFlMlDrI4PYfAQvXmQyieQmhFHOQBEAZJZlMeQa4UNapPWZw5AVFXIqiDATUGkKhaiCtiADUIfUQUiIHrXhdxUtQFQqfp63P0YF4EHsXCSNdwAn7H1ga+zL7Q777HbvqvNszE2hEoJlRKKI5pIR1u+Yi++AX4JThJuCiaBZBaA5mZFV+7WKEBpBIEHr4DyKKIKQh+jAzK/217/LQSTZyWImRD4aJkH2y/dW3TdVh7pg5PQfAcNHkZnt77+rN24EyB4BbQvolef0VVXYuAgRb52XiQXbabDT2r7Ys3PMQd/rW0LdWYn/CIFk1AL4jMV2GeaRgkAmHHRZr5vF7rWY2YnmmdjfjeCSSz9EPX1sEnoxpsxMYyO5dq5BpGH7i3wi5TvwKor8M4buuZamtFOlZKu3oSWebAB8h1UOk79L9TQZJ65C9lAW+ZqMgsbaipHffv5F19GMIlEBiP9ANEbz6FSxtgg+SXyi5jRTqMDyLVCBb09uGAJ9fbAK2CygEoZBG3r0txMbemsxtVZyUKsxqEoUCdBqgh9dVMwLvkTmsyRV9B0M0kEhboJmixorhVeASZJQUmb2qk4osksQAh9OO6pMSPZsIZHBrVJCa2WW5VqJykCKMhALdiBjUAEAkQQ12B2oArmWEpALEDVHHUqJdekiGorZATi6vynKj8JoOonKuCTnUrVbrcqvOPXp7RG1egpzdq59ur7P+3qf325Po/G6jpWmdbVAGgANAAaAA2ABkADoAEwhfUv3I/mqu8bt5UAAAAASUVORK5CYII=" alt="ELOC" style={{width:"100%",height:"100%",objectFit:"contain"}} alt="ELOC" style={{width:"100%",height:"100%",objectFit:"contain"}} alt="ELOC" style={{ width: 32, height: 32, objectFit: "contain", borderRadius: 6 }} />
+        <img src="data:image/png;base64,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" alt="ELOC" style={{width:"100%",height:"100%",objectFit:"contain"}} />
         <div><div className="logo-name">ELOC</div><div className="logo-ver">Manager v2.1</div></div>
       </div>
       {nav.map(sec => (
@@ -4826,7 +4851,7 @@ function Sidebar({ user, active, onNav, open }) {
 }
 
 // ─── ADMIN DASHBOARD ──────────────────────────────────────────────────────────
-function AdminDashboard({ data }) {
+function AdminDashboard({ data, user }) {
   const students = data.users.filter(u => u.role === "student");
   const teachers = data.users.filter(u => u.role === "teacher");
   const totalRevenue = data.payments.filter(p => p.status === "paid").reduce((s, p) => s + p.amount, 0);
@@ -4834,16 +4859,25 @@ function AdminDashboard({ data }) {
   const completedSessions = data.sessions.filter(s => s.status === "completed").length;
   const totalSessions = data.sessions.length;
 
-  const monthlyRev = [
-    { l: "Sep", v: 1200 }, { l: "Oct", v: 1450 }, { l: "Nov", v: 1380 },
-    { l: "Dec", v: 900 }, { l: "Jan", v: 1600 }, { l: "Feb", v: totalRevenue },
-  ];
+  // Build last 6 months of real revenue data
+  const monthlyRev = (() => {
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(); d.setMonth(d.getMonth() - i);
+      const ym = d.toISOString().slice(0, 7); // YYYY-MM
+      const v = data.payments
+        .filter(p => p.status === "paid" && (p.date || p.createdAt || "").slice(0, 7) === ym)
+        .reduce((s, p) => s + (p.amount || 0), 0);
+      months.push({ l: d.toLocaleString("default", { month: "short" }), v });
+    }
+    return months;
+  })();
 
   return (
     <div>
       <div className="ph">
         <div>
-          <div className="ph-title">Good morning, Sarah 👋</div>
+          <div className="ph-title">Good {(() => { const h = new Date().getHours(); return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening"; })()} {user?.name?.split(" ")[0] || "Admin"} 👋</div>
           <div className="ph-sub">Here's your ELOC overview for today</div>
         </div>
       </div>
@@ -4937,7 +4971,7 @@ function AdminDashboard({ data }) {
       {/* Curriculum overview */}
       <div className="g3 mt16">
         {data.books.map(book => {
-          const lessons = data.lessons.filter(l => l.bookId === book.id);
+          const lessons = data.lessons.filter(l => String(l.bookId) === String(book.id));
           const chapters = book.chapters.length;
           const coveredChapters = new Set(lessons.map(l => l.chapterId)).size;
           return (
@@ -5075,9 +5109,9 @@ function StudentProfileModal({ student, data, setData, onClose, onResetPassword 
       </div>
 
       <div className="sh-title mb8">Payment History</div>
-      {data.payments.filter(p => p.studentId === freshStudent.id).length === 0
+      {data.payments.filter(p => String(p.studentId) === String(freshStudent.id)).length === 0
         ? <div className="empty" style={{ padding: "12px 0" }}><div className="empty-icon" style={{ fontSize: 22 }}>💳</div><div className="empty-title">No payments yet</div></div>
-        : data.payments.filter(p => p.studentId === freshStudent.id).map(p => (
+        : data.payments.filter(p => String(p.studentId) === String(freshStudent.id)).map(p => (
           <div key={p.id} className="li">
             <div style={{ flex: 1 }}><div className="fw7 text-sm">{p.month}</div><div className="text-xs muted">Due: {p.dueDate}</div></div>
             <div className="fw7 mono" style={{ marginRight: 10 }}>{fmt$(p.amount)}</div>
@@ -5492,7 +5526,7 @@ function StudentsPage({ data, setData }) {
             </thead>
             <tbody>
               {students.map(s => {
-                const g = data.groups.find(g => g.id === s.groupId);
+                const g = data.groups.find(g => String(g.id) === String(s.groupId));
                 return (
                   <tr key={s.id}>
                     <td>
@@ -5759,7 +5793,7 @@ function TeacherProfileModal({ teacher, data, setData, onClose, onResetPassword,
       )}
 
       <div className="sh-title mb8">Payment Records</div>
-      {data.teacherPayments.filter(tp => tp.teacherId === fresh.id).map(tp => (
+      {data.teacherPayments.filter(tp => String(tp.teacherId) === String(fresh.id)).map(tp => (
         <div key={tp.id} className="li">
           <div style={{ flex: 1 }}><div className="fw7 text-sm">{tp.month}</div><div className="text-xs muted">{tp.date ?? "Not yet paid"}</div></div>
           <div className="fw7 mono" style={{ marginRight: 12 }}>{fmt$(tp.amount)}</div>
@@ -5823,13 +5857,13 @@ function TeachersPage({ data, setData }) {
   };
 
   const getEarnings = (tid) => {
-    const tGroups = data.groups.filter(g => g.teacherId === tid);
+    const tGroups = data.groups.filter(g => String(g.teacherId) === String(tid));
     const tStudents = data.users.filter(u => u.role === "student" && tGroups.some(g => g.id === u.groupId));
-    const revenue = tStudents.reduce((s, st) => s + data.payments.filter(p => p.studentId === st.id && p.status === "paid").reduce((a, p) => a + p.amount, 0), 0);
+    const revenue = tStudents.reduce((s, st) => s + data.payments.filter(p => String(p.studentId) === String(st.id) && p.status === "paid").reduce((a, p) => a + p.amount, 0), 0);
     const t = data.users.find(u => u.id === tid);
     const commission = ((t?.commission ?? 35) / 100) * revenue;
-    const paid = data.teacherPayments.filter(tp => tp.teacherId === tid && tp.status === "paid").reduce((s, p) => s + p.amount, 0);
-    return { revenue, commission, paid, balance: commission - paid, sessions: data.sessions.filter(s => s.teacherId === tid && s.status === "completed").length };
+    const paid = data.teacherPayments.filter(tp => String(tp.teacherId) === String(tid) && tp.status === "paid").reduce((s, p) => s + p.amount, 0);
+    return { revenue, commission, paid, balance: commission - paid, sessions: data.sessions.filter(s => String(s.teacherId) === String(tid) && s.status === "completed").length };
   };
 
   const markTeacherPaid = (tpId) => {
@@ -5875,7 +5909,7 @@ function TeachersPage({ data, setData }) {
       <div className="g2">
         {teachers.map(t => {
           const e = getEarnings(t.id);
-          const groups = data.groups.filter(g => g.teacherId === t.id);
+          const groups = data.groups.filter(g => String(g.teacherId) === String(t.id));
           const students = data.users.filter(u => u.role === "student" && groups.some(g => g.id === u.groupId));
           return (
             <div key={t.id} className="card" style={{ cursor: "pointer" }} onClick={() => setViewT({ ...t, earnings: e, groups, students })}>
@@ -6027,7 +6061,7 @@ function GroupsPage({ data, setData }) {
   const allGroups = data.groups;
   const filteredGroups = allGroups
     .filter(g => levelFilter === "all" || g.level === levelFilter)
-    .filter(g => teacherFilter === "all" || String(g.teacherId) === teacherFilter)
+    .filter(g => teacherFilter === "all" || String(g.teacherId) === String(teacherFilter))
     .filter(g => g.name.toLowerCase().includes(search.toLowerCase()));
 
   const addGroup = async () => {
@@ -6092,8 +6126,8 @@ function GroupsPage({ data, setData }) {
       <div className="g3">
         {filteredGroups.map(g => {
           const teacher = data.users.find(u => u.id === g.teacherId);
-          const students = data.users.filter(u => u.role === "student" && u.groupId === g.id);
-          const series = data.series.filter(s => s.groupId === g.id);
+          const students = data.users.filter(u => u.role === "student" && String(u.groupId) === String(g.id));
+          const series = data.series.filter(s => String(s.groupId) === String(g.id));
           const fill = (students.length / g.maxStudents) * 100;
           return (
             <div key={g.id} className="card" style={{ cursor: "pointer" }} onClick={() => setViewG({ ...g, teacher, students, series })}>
@@ -6296,7 +6330,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
   };
 
   // ── student payments ─────────────────────────────────────────────────────────
-  const allStudentPay = userRole==="student" ? data.payments.filter(p=>p.studentId===userId) : data.payments;
+  const allStudentPay = userRole==="student" ? data.payments.filter(p=>String(p.studentId)===String(userId)) : data.payments;
 
   const filteredStudentPay = allStudentPay.filter(p => {
     // period: use paid date if paid, else dueDate
@@ -6304,7 +6338,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
     if (!inPeriod(dateToCheck)) return false;
     if (statusF!=="all" && p.status!==statusF) return false;
     if (search) {
-      const st = data.users.find(u=>u.id===p.studentId);
+      const st = data.users.find(u=>String(u.id)===String(p.studentId));
       if (!st?.name.toLowerCase().includes(search.toLowerCase()) &&
           !p.month.toLowerCase().includes(search.toLowerCase())) return false;
     }
@@ -6318,17 +6352,17 @@ function PaymentsPage({ data, setData, userRole, userId }) {
 
   // ── teacher payroll ───────────────────────────────────────────────────────────
   const teacherPayrollData = data.users.filter(u=>u.role==="teacher").map(teacher => {
-    const myGroups   = data.groups.filter(g=>g.teacherId===teacher.id);
+    const myGroups   = data.groups.filter(g=>String(g.teacherId) === String(teacher.id));
     const myStudents = data.users.filter(u=>u.role==="student" && myGroups.some(g=>g.id===u.groupId));
     const totalRevenue = myStudents.reduce((sum,st)=>
-      sum+data.payments.filter(p=>p.studentId===st.id&&p.status==="paid").reduce((a,p)=>a+p.amount,0),0);
+      sum+data.payments.filter(p=>String(p.studentId)===String(st.id)&&p.status==="paid").reduce((a,p)=>a+p.amount,0),0);
     const earned      = Math.round(((teacher.commission??35)/100)*totalRevenue);
-    const alreadyPaid = data.teacherPayments.filter(tp=>tp.teacherId===teacher.id&&tp.status==="paid").reduce((s,p)=>s+p.amount,0);
+    const alreadyPaid = data.teacherPayments.filter(tp=>String(tp.teacherId) === String(teacher.id)&&tp.status==="paid").reduce((s,p)=>s+p.amount,0);
     const balance     = earned - alreadyPaid;
-    const paymentHistory = data.teacherPayments.filter(tp=>tp.teacherId===teacher.id);
-    const completedSessions = data.sessions.filter(s=>s.teacherId===teacher.id&&s.status==="completed").length;
+    const paymentHistory = data.teacherPayments.filter(tp=>String(tp.teacherId) === String(teacher.id));
+    const completedSessions = data.sessions.filter(s=>String(s.teacherId) === String(teacher.id)&&s.status==="completed").length;
     // period-filtered payouts
-    const periodPaid  = data.teacherPayments.filter(tp=>tp.teacherId===teacher.id&&tp.status==="paid"&&inPeriod(tp.date)).reduce((s,p)=>s+p.amount,0);
+    const periodPaid  = data.teacherPayments.filter(tp=>String(tp.teacherId) === String(teacher.id)&&tp.status==="paid"&&inPeriod(tp.date)).reduce((s,p)=>s+p.amount,0);
     return { teacher, myStudents, totalRevenue, earned, alreadyPaid, balance, paymentHistory, completedSessions, periodPaid };
   });
 
@@ -6580,7 +6614,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
               <div className="sh-title">👨‍🎓 Student Payment Status</div>
             </div>
             {data.users.filter(u=>u.role==="student").map(st=>{
-              const myPay = filteredStudentPay.filter(p=>p.studentId===st.id);
+              const myPay = filteredStudentPay.filter(p=>String(p.studentId)===String(st.id));
               const paid  = myPay.filter(p=>p.status==="paid").reduce((s,p)=>s+p.amount,0);
               const owed  = myPay.filter(p=>p.status!=="paid").reduce((s,p)=>s+p.amount,0);
               const hasOverdue = myPay.some(p=>p.status==="overdue");
@@ -6699,7 +6733,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
             <div className="sh mb12"><div className="sh-title">📋 Per-Student Summary ({periodLabel()})</div></div>
             <div className="g2" style={{gap:10}}>
               {data.users.filter(u=>u.role==="student").map(st=>{
-                const myPay=filteredStudentPay.filter(p=>p.studentId===st.id);
+                const myPay=filteredStudentPay.filter(p=>String(p.studentId)===String(st.id));
                 const paid=myPay.filter(p=>p.status==="paid").reduce((s,p)=>s+p.amount,0);
                 const owed=myPay.filter(p=>p.status!=="paid").reduce((s,p)=>s+p.amount,0);
                 const rate=paid+owed>0?Math.round(paid/(paid+owed)*100):null;
@@ -6915,14 +6949,14 @@ function PaymentsPage({ data, setData, userRole, userId }) {
 // ─── TEACHER DASHBOARD ────────────────────────────────────────────────────────
 function TeacherDashboard({ user, data }) {
   data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
-  const myGroups = data.groups.filter(g => g.teacherId === user.id);
-  const mySessions = data.sessions.filter(s => s.teacherId === user.id);
-  const myStudents = data.users.filter(u => u.role === "student" && myGroups.some(g => g.id === u.groupId));
-  const mySeries = data.series.filter(s => s.teacherId === user.id);
+  const myGroups = data.groups.filter(g => String(g.teacherId) === String(user.id));
+  const mySessions = data.sessions.filter(s => String(s.teacherId) === String(user.id));
+  const myStudents = data.users.filter(u => u.role === "student" && myGroups.some(g => String(g.id) === String(u.groupId)));
+  const mySeries = data.series.filter(s => String(s.teacherId) === String(user.id));
   const completedSessions = mySessions.filter(s => s.status === "completed").length;
-  const revenue = myStudents.reduce((sum, s) => sum + data.payments.filter(p => p.studentId === s.id && p.status === "paid").reduce((a, p) => a + p.amount, 0), 0);
+  const revenue = myStudents.reduce((sum, s) => sum + data.payments.filter(p => String(p.studentId) === String(s.id) && p.status === "paid").reduce((a, p) => a + p.amount, 0), 0);
   const earned = (user.commission / 100) * revenue;
-  const paid = data.teacherPayments.filter(tp => tp.teacherId === user.id && tp.status === "paid").reduce((s, p) => s + p.amount, 0);
+  const paid = data.teacherPayments.filter(tp => String(tp.teacherId) === String(user.id) && tp.status === "paid").reduce((s, p) => s + p.amount, 0);
   const upcomingToday = mySessions.filter(s => s.status === "upcoming").slice(0, 5);
 
   return (
@@ -7053,14 +7087,14 @@ function StudentProfile({ user, setUser }) {
 
 function StudentDashboard({ user, data }) {
   data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], attendance:[], teacherPayments:[], ...data };
-  const myGroup = data.groups.find(g => g.id === user.groupId);
-  const myTeacher = myGroup ? data.users.find(u => u.id === myGroup.teacherId) : null;
-  const mySessions = data.sessions.filter(s => s.groupId === user.groupId && !s.isCancelled);
+  const myGroup = data.groups.find(g => String(g.id) === String(user.groupId));
+  const myTeacher = myGroup ? data.users.find(u => String(u.id) === String(myGroup.teacherId)) : null;
+  const mySessions = data.sessions.filter(s => String(s.groupId) === String(user.groupId) && !s.isCancelled);
   const completed = mySessions.filter(s => s.status === "completed");
   const upcoming = mySessions.filter(s => s.status === "upcoming");
   const attended = completed.filter(s => (s.attendance ?? {})[user.id] === true).length;
   const attRate = completed.length > 0 ? Math.round((attended / completed.length) * 100) : 0;
-  const myPayments = data.payments.filter(p => p.studentId === user.id);
+  const myPayments = data.payments.filter(p => String(p.studentId) === String(user.id));
 
   return (
     <div>
@@ -7132,12 +7166,12 @@ function StudentDashboard({ user, data }) {
 
 // ─── TEACHER EARNINGS ─────────────────────────────────────────────────────────
 function TeacherEarnings({ user, data }) {
-  const myGroups = data.groups.filter(g => g.teacherId === user.id);
-  const myStudents = data.users.filter(u => u.role === "student" && myGroups.some(g => g.id === u.groupId));
-  const mySessions = data.sessions.filter(s => s.teacherId === user.id);
-  const revenue = myStudents.reduce((sum, s) => sum + data.payments.filter(p => p.studentId === s.id && p.status === "paid").reduce((a, p) => a + p.amount, 0), 0);
+  const myGroups = data.groups.filter(g => String(g.teacherId) === String(user.id));
+  const myStudents = data.users.filter(u => u.role === "student" && myGroups.some(g => String(g.id) === String(u.groupId)));
+  const mySessions = data.sessions.filter(s => String(s.teacherId) === String(user.id));
+  const revenue = myStudents.reduce((sum, s) => sum + data.payments.filter(p => String(p.studentId) === String(s.id) && p.status === "paid").reduce((a, p) => a + p.amount, 0), 0);
   const earned = (user.commission / 100) * revenue;
-  const paid = data.teacherPayments.filter(tp => tp.teacherId === user.id && tp.status === "paid").reduce((s, p) => s + p.amount, 0);
+  const paid = data.teacherPayments.filter(tp => String(tp.teacherId) === String(user.id) && tp.status === "paid").reduce((s, p) => s + p.amount, 0);
 
   return (
     <div>
@@ -7152,7 +7186,7 @@ function TeacherEarnings({ user, data }) {
       </div>
       <div className="card">
         <div className="sh-title mb12">Payment Records</div>
-        {data.teacherPayments.filter(tp => tp.teacherId === user.id).map(tp => (
+        {data.teacherPayments.filter(tp => String(tp.teacherId) === String(user.id)).map(tp => (
           <div key={tp.id} className="li">
             <div style={{ flex: 1 }}><div className="fw7 text-sm">{tp.month}</div><div className="text-xs muted">{tp.date ? `Paid: ${tp.date}` : "Pending"}</div></div>
             <div className="fw7 mono" style={{ marginRight: 12 }}>{fmt$(tp.amount)}</div>
@@ -7236,8 +7270,8 @@ function Analytics({ data, teacherFilter = null }) {
     const sess    = completed.filter(s => st.id in (s.attendance??{}));
     const present = sess.filter(s => s.attendance[st.id]===true).length;
     const rate    = sess.length ? Math.round(present/sess.length*100) : null;
-    const paid    = data.payments.filter(p=>p.studentId===st.id&&p.status==="paid").reduce((s,p)=>s+p.amount,0);
-    const owed    = data.payments.filter(p=>p.studentId===st.id&&p.status!=="paid").reduce((s,p)=>s+p.amount,0);
+    const paid    = data.payments.filter(p=>String(p.studentId)===String(st.id)&&p.status==="paid").reduce((s,p)=>s+p.amount,0);
+    const owed    = data.payments.filter(p=>String(p.studentId)===String(st.id)&&p.status!=="paid").reduce((s,p)=>s+p.amount,0);
     const streak  = (() => { let n=0; for(const s of [...sess].sort((a,b)=>b.date.localeCompare(a.date))){ if((s.attendance ?? {})[st.id]===true)n++; else break; } return n; })();
     return { ...st, sess:sess.length, present, rate, paid, owed, streak };
   });
@@ -7247,37 +7281,37 @@ function Analytics({ data, teacherFilter = null }) {
 
   // ── per-teacher stats ────────────────────────────────────────────────────────
   const teacherStats = teachers.map(t => {
-    const myGroups   = data.groups.filter(g=>g.teacherId===t.id);
-    const myStudents = students.filter(s=>myGroups.some(g=>g.id===s.groupId));
-    const done       = data.sessions.filter(s=>s.teacherId===t.id&&s.status==="completed").length;
-    const total      = data.sessions.filter(s=>s.teacherId===t.id).length;
-    const revenue    = myStudents.reduce((sum,st)=>sum+data.payments.filter(p=>p.studentId===st.id&&p.status==="paid").reduce((a,p)=>a+p.amount,0),0);
+    const myGroups   = data.groups.filter(g=>String(g.teacherId) === String(t.id));
+    const myStudents = students.filter(s=>myGroups.some(g=>String(g.id)===String(s.groupId)));
+    const done       = data.sessions.filter(s=>String(s.teacherId) === String(t.id)&&s.status==="completed").length;
+    const total      = data.sessions.filter(s=>String(s.teacherId) === String(t.id)).length;
+    const revenue    = myStudents.reduce((sum,st)=>sum+data.payments.filter(p=>String(p.studentId)===String(st.id)&&p.status==="paid").reduce((a,p)=>a+p.amount,0),0);
     const earned     = Math.round((t.commission??35)/100*revenue);
-    const attPairs   = completed.filter(s=>s.teacherId===t.id).flatMap(s=>Object.values(s.attendance??{}));
+    const attPairs   = completed.filter(s=>String(s.teacherId) === String(t.id)).flatMap(s=>Object.values(s.attendance??{}));
     const attRate    = attPairs.length ? Math.round(attPairs.filter(Boolean).length/attPairs.length*100) : 0;
-    const paidOut    = data.teacherPayments.filter(p=>p.teacherId===t.id&&p.status==="paid").reduce((s,p)=>s+p.amount,0);
+    const paidOut    = data.teacherPayments.filter(p=>String(p.teacherId) === String(t.id)&&p.status==="paid").reduce((s,p)=>s+p.amount,0);
     return {...t, groups:myGroups.length, myStudents:myStudents.length, done, total, revenue, earned, attRate, paidOut, balance:earned-paidOut };
   });
 
   // ── per-group stats ──────────────────────────────────────────────────────────
   const groupStats = data.groups.map(g => {
-    const grpStudents = students.filter(s=>s.groupId===g.id);
-    const sessDone    = completed.filter(s=>s.groupId===g.id).length;
-    const sessTotal   = data.sessions.filter(s=>s.groupId===g.id).length;
-    const attPairs    = completed.filter(s=>s.groupId===g.id).flatMap(s=>Object.values(s.attendance??{}));
+    const grpStudents = students.filter(s=>String(s.groupId)===String(g.id));
+    const sessDone    = completed.filter(s=>String(s.groupId)===String(g.id)).length;
+    const sessTotal   = data.sessions.filter(s=>String(s.groupId)===String(g.id)).length;
+    const attPairs    = completed.filter(s=>String(s.groupId)===String(g.id)).flatMap(s=>Object.values(s.attendance??{}));
     const attRate     = attPairs.length ? Math.round(attPairs.filter(Boolean).length/attPairs.length*100) : 0;
-    const teacher     = teachers.find(t=>t.id===g.teacherId);
-    const rev         = grpStudents.reduce((sum,st)=>sum+data.payments.filter(p=>p.studentId===st.id&&p.status==="paid").reduce((a,p)=>a+p.amount,0),0);
+    const teacher     = teachers.find(t=>String(t.id)===String(g.teacherId));
+    const rev         = grpStudents.reduce((sum,st)=>sum+data.payments.filter(p=>String(p.studentId)===String(st.id)&&p.status==="paid").reduce((a,p)=>a+p.amount,0),0);
     const fillPct     = g.maxStudents ? Math.round(grpStudents.length/g.maxStudents*100) : 0;
     return {...g, grpStudents, sessDone, sessTotal, attRate, teacher, rev, fillPct};
   });
 
   // ── series ────────────────────────────────────────────────────────────────────
   const seriesStats = data.series.map(s => {
-    const total = data.sessions.filter(x=>x.seriesId===s.id).length;
-    const done  = data.sessions.filter(x=>x.seriesId===s.id&&x.status==="completed").length;
+    const total = data.sessions.filter(x=>String(x.seriesId)===String(s.id)).length;
+    const done  = data.sessions.filter(x=>String(x.seriesId)===String(s.id)&&x.status==="completed").length;
     const pct   = total ? Math.round(done/total*100) : 0;
-    return {...s, total, done, pct, group:data.groups.find(g=>g.id===s.groupId)};
+    return {...s, total, done, pct, group:data.groups.find(g=>String(g.id)===String(s.groupId))};
   });
 
   // ── color helpers ─────────────────────────────────────────────────────────────
@@ -7820,7 +7854,7 @@ function Analytics({ data, teacherFilter = null }) {
                   {l:"Students",  v:`${g.grpStudents.length}/${g.maxStudents}`},
                   {l:"Sessions",  v:`${g.sessDone}/${g.sessTotal}`},
                   {l:"Revenue",   v:fmt$(g.rev), c:"var(--accent2)"},
-                  {l:"Upcoming",  v:upcoming.filter(s=>s.groupId===g.id).length},
+                  {l:"Upcoming",  v:upcoming.filter(s=>String(s.groupId)===String(g.id)).length},
                 ].map((x,j)=>(
                   <div key={j} style={{background:"var(--bg3)",borderRadius:9,padding:"10px",textAlign:"center"}}>
                     <div style={{fontSize:15,fontWeight:800,color:x.c||"var(--text)"}}>{x.v}</div>
@@ -7844,7 +7878,7 @@ function Analytics({ data, teacherFilter = null }) {
                     letterSpacing:.5,marginBottom:8}}>Students in this group</div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
                     {g.grpStudents.map(st=>{
-                      const sess = completed.filter(s=>s.groupId===g.id&&st.id in (s.attendance??{}));
+                      const sess = completed.filter(s=>String(s.groupId)===String(g.id)&&st.id in (s.attendance??{}));
                       const rate = sess.length?Math.round(sess.filter(s=>(s.attendance ?? {})[st.id]===true).length/sess.length*100):null;
                       return (
                         <div key={st.id} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 10px",
@@ -7870,9 +7904,9 @@ function Analytics({ data, teacherFilter = null }) {
 
 // ─── STUDENT CLASSES & ATTENDANCE ─────────────────────────────────────────────
 function StudentClasses({ user, data }) {
-  const myGroup = data.groups.find(g => g.id === user.groupId);
-  const myTeacher = myGroup ? data.users.find(u => u.id === myGroup.teacherId) : null;
-  const classmates = myGroup ? data.users.filter(u => u.role === "student" && u.groupId === myGroup.id && u.id !== user.id) : [];
+  const myGroup = data.groups.find(g => String(g.id) === String(user.groupId));
+  const myTeacher = myGroup ? data.users.find(u => String(u.id) === String(myGroup.teacherId)) : null;
+  const classmates = myGroup ? data.users.filter(u => u.role === "student" && String(u.groupId) === String(myGroup.id) && u.id !== user.id) : [];
   if (!myGroup) return <div className="empty" style={{ marginTop: 60 }}><div className="empty-icon">📚</div><div className="empty-title">Not assigned to a group yet</div></div>;
   return (
     <div>
@@ -7890,7 +7924,7 @@ function StudentClasses({ user, data }) {
 }
 
 function StudentAttendance({ user, data }) {
-  const mySessions = data.sessions.filter(s => s.groupId === user.groupId && s.status === "completed");
+  const mySessions = data.sessions.filter(s => String(s.groupId) === String(user.groupId) && s.status === "completed");
   const attended = mySessions.filter(s => (s.attendance ?? {})[user.id] === true).length;
   const rate = mySessions.length > 0 ? Math.round((attended / mySessions.length) * 100) : 0;
   return (
@@ -7928,13 +7962,13 @@ function StudentMaterials({ user, data }) {
 
   const myGroup           = data.groups.find(g => g.id === user.groupId);
   const mySessions        = data.sessions
-    .filter(s => s.groupId === user.groupId && !s.isCancelled)
+    .filter(s => String(s.groupId) === String(user.groupId) && !s.isCancelled)
     .sort((a, b) => a.date.localeCompare(b.date));
   const completedSessions = mySessions.filter(s => s.status === "completed");
   const upcomingSessions  = mySessions.filter(s => s.status === "upcoming");
 
   const getLessonForSession = (s) =>
-    data.lessons.find(l => l.sessionId === s.id)
+    data.lessons.find(l => String(l.sessionId) === String(s.id))
     ?? (s.seriesId ? data.lessons.find(l => l.seriesId === s.seriesId && !l.sessionId) : null);
 
   const lessonsWithContent = mySessions
@@ -8577,7 +8611,7 @@ function StudentMaterials({ user, data }) {
             </div>
           ) : myBooks.map(book => {
             const coveredChapters = new Set(
-              data.lessons.filter(l => l.bookId === book.id).map(l => l.chapterId)
+              data.lessons.filter(l => String(l.bookId) === String(book.id)).map(l => l.chapterId)
             );
             const progress = book.chapters?.length
               ? Math.round(coveredChapters.size / book.chapters.length * 100) : 0;
@@ -8967,7 +9001,7 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
   const teacherName = tid => data.users.find(u => String(u.id) === String(tid))?.name ?? "—";
 
   const filteredSessions = completed.filter(s => {
-    if (teacherFilter && s.teacherId !== teacherFilter) return false;
+    if (teacherFilter && String(s.teacherId) !== String(teacherFilter)) return false;
     if (filterTeacher !== "all" && String(s.teacherId) !== String(filterTeacher)) return false;
     if (filterGroup   !== "all" && String(s.groupId)   !== String(filterGroup))   return false;
     if (filterDateFrom && s.date < filterDateFrom) return false;
@@ -9360,7 +9394,7 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
             </div>
             <div style={{ fontSize:11, color:"var(--text3)", marginBottom:6, display:"flex", justifyContent:"space-between" }}>
               <span>Attendance progress</span>
-              <span>{focusSt.present} / {focusSt.mySessions.length} sessions</span>
+              <span>{focusSt.present} / {focusSt.markedSessions.length} sessions</span>
             </div>
             <div style={{ height:8, background:"var(--bg4)", borderRadius:99, overflow:"hidden" }}>
               <div style={{ height:"100%", borderRadius:99, width:(focusSt.rate??0)+"%",
@@ -9370,10 +9404,10 @@ function AdminAttendancePage({ data, setData, teacherFilter }) {
           {/* Session-by-session history */}
           <div className="card" style={{ padding:0 }}>
             <div style={{ padding:"12px 18px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div className="sh-title">📅 Session History ({focusSt.mySessions.length})</div>
+              <div className="sh-title">📅 Session History ({focusSt.markedSessions.length})</div>
               <span style={{ fontSize:11, color:"var(--text3)" }}>Click status to toggle</span>
             </div>
-            {[...focusSt.mySessions].sort((a,b) => b.date.localeCompare(a.date)).map(s => {
+            {[...focusSt.markedSessions].sort((a,b) => b.date.localeCompare(a.date)).map(s => {
               const present = (s.attendance ?? {})[focusSt.id];
               return (
                 <div key={s.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px",
@@ -10105,6 +10139,11 @@ export default function App() {
         order: ch.order || 0,
       }));
     }
+    // Normalize all ObjectId reference fields to strings (prevents === comparison failures)
+    const refFields = ['groupId', 'teacherId', 'studentId', 'bookId', 'sessionId', 'lessonId'];
+    for (const f of refFields) {
+      if (flat[f] != null) flat[f] = String(flat[f]);
+    }
     // normalize: ensure sessions have both time and startTime for compatibility
     if (item.startTime && !flat.time) flat.time = flat.startTime;
     if (item.time && !flat.startTime) flat.startTime = flat.time;
@@ -10167,7 +10206,10 @@ export default function App() {
     if (hasToken()) {
       api.auth.me()
         .then(u => {
-          setUser(deepClean(u));
+          const clean = deepClean(u);
+          // Ensure ref fields are strings on the user object
+          if (clean.groupId) clean.groupId = String(clean.groupId);
+          setUser(clean);
         })
         .catch(() => clearToken())
         .finally(() => setAuthLoading(false));
@@ -10197,7 +10239,7 @@ export default function App() {
   const renderPage = () => {
     if (user.role === "admin") {
       const pages = {
-        dashboard: <AdminDashboard data={data} />,
+        dashboard: <AdminDashboard data={data} user={user} />,
         analytics: <Analytics data={data} />,
         students: <StudentsPage data={data} setData={setData} />,
         teachers: <TeachersPage data={data} setData={setData} />,
@@ -10270,7 +10312,10 @@ export default function App() {
             </div>
             <div className="topbar-right">
               <div className="topbar-chip topbar-date" style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--accent2)", background: "var(--glow)", borderColor: "rgba(249,115,22,.2)" }}>
-                Thu, Feb 26 2025
+                {(() => {
+                  const d = new Date();
+                  return d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+                })()}
               </div>
               <div className="topbar-chip" onClick={logout}>
                 <Av name={user.name} sz="av-sm" />

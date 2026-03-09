@@ -15,8 +15,11 @@ router.get('/', async (req, res) => {
       // Students only see themselves
       query._id = req.user._id;
     } else if (req.user.role === 'teacher') {
-      // Teachers see students only (to mark attendance, see their group)
-      query.role = 'student';
+      // Teachers see students + themselves (needed for profile, settings)
+      query.$or = [
+        { role: 'student' },
+        { _id: req.user._id },
+      ];
     }
     // Admins see everyone
     const users = await User.find(query).select(fields).lean().sort({ createdAt: -1 });

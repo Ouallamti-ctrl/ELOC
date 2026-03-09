@@ -1790,16 +1790,11 @@ function getFile(fileId) {
 }
 
 // Cross-origin safe download: route through backend proxy for Cloudinary, or direct fetch
-const BACKEND = import.meta.env.VITE_API_URL || 'https://eloc-backend.onrender.com/api';
 
 async function downloadFile(url, filename) {
   if (!url) return;
   try {
-    // Use backend proxy for Cloudinary URLs to bypass CORS
-    const fetchUrl = url.includes('res.cloudinary.com')
-      ? `${BACKEND}/proxy-pdf?url=${encodeURIComponent(url)}`
-      : url;
-    const response = await fetch(fetchUrl);
+    const response = await fetch(url);
     if (!response.ok) throw new Error('Download failed');
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
@@ -1811,11 +1806,9 @@ async function downloadFile(url, filename) {
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(blobUrl), 8000);
   } catch(e) {
-    // Fallback: open in new tab
     window.open(url, '_blank');
   }
 }
-
 // ─── FILE ROW COMPONENT ───────────────────────────────────────────────────────
 function FileRow({ fileId, label, onPreview, onRemove, canRemove }) {
   const file = getFile(fileId);

@@ -1727,6 +1727,193 @@ async function storeFile(file, bookId, lessonId) {
   return URL.createObjectURL(file);
 }
 
+
+// ─── GOOGLE DRIVE HELPERS ─────────────────────────────────────────────────────
+
+// Convert any Google Drive share link to a direct preview/download URL
+function parseGDriveLink(link) {
+  if (!link) return null;
+  // Already a proper URL
+  if (!link.includes('drive.google.com') && !link.includes('docs.google.com')) {
+    // Could be a direct URL - return as-is
+    return link.startsWith('http') ? { preview: link, download: link, valid: true } : null;
+  }
+  // Extract file ID from various Google Drive URL formats:
+  // https://drive.google.com/file/d/FILE_ID/view
+  // https://drive.google.com/open?id=FILE_ID
+  // https://docs.google.com/document/d/FILE_ID/edit
+  let fileId = null;
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /\/d\/([a-zA-Z0-9_-]+)/,
+  ];
+  for (const p of patterns) {
+    const m = link.match(p);
+    if (m) { fileId = m[1]; break; }
+  }
+  if (!fileId) return { preview: link, download: link, valid: true, raw: true };
+  return {
+    fileId,
+    preview:  `https://drive.google.com/file/d/${fileId}/preview`,
+    download: `https://drive.google.com/uc?export=download&id=${fileId}`,
+    view:     `https://drive.google.com/file/d/${fileId}/view`,
+    valid:    true,
+  };
+}
+
+function isGDriveLink(val) {
+  if (!val) return false;
+  return val.includes('drive.google.com') || val.includes('docs.google.com');
+}
+
+// ─── GOOGLE DRIVE LINK INPUT ──────────────────────────────────────────────────
+// Styled input for teachers to paste a Google Drive link
+function GoogleDriveLinkInput({ value, onChange, onSave, placeholder, label }) {
+  const [input, setInput] = useState(value || '');
+  const [saved, setSaved] = useState(!!value);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (value) { setInput(value); setSaved(true); }
+  }, [value]);
+
+  const handleSave = () => {
+    const trimmed = input.trim();
+    if (!trimmed) { setError('Please paste a Google Drive link'); return; }
+    const parsed = parseGDriveLink(trimmed);
+    if (!parsed) { setError('Invalid link — please use a Google Drive share link'); return; }
+    setError('');
+    setSaved(true);
+    onSave(trimmed, parsed);
+  };
+
+  const handleClear = () => {
+    setInput(''); setSaved(false); setError('');
+    onSave('', null);
+  };
+
+  if (saved && input) {
+    const parsed = parseGDriveLink(input);
+    return (
+      <div style={{ borderRadius:10, padding:'12px 14px', background:'rgba(66,133,244,.08)',
+        border:'1px solid rgba(66,133,244,.25)', display:'flex', alignItems:'center', gap:10 }}>
+        {/* Google Drive icon */}
+        <div style={{ width:36, height:36, borderRadius:8, flexShrink:0, display:'flex',
+          alignItems:'center', justifyContent:'center', fontSize:20,
+          background:'rgba(66,133,244,.12)' }}>
+          <svg width="20" height="18" viewBox="0 0 87.3 78" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066DA"/>
+            <path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.35A9 9 0 000 52.8h27.5z" fill="#00AC47"/>
+            <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.85z" fill="#EA4335"/>
+            <path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832D"/>
+            <path d="M59.8 52.8H27.5L13.75 76.6c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.4 4.5-1.2z" fill="#2684FC"/>
+            <path d="M73.4 26.4l-12.8-22.2c-.8-1.4-1.95-2.5-3.3-3.2L43.65 25l16.15 27.8H87.2c0-1.55-.4-3.1-1.2-4.5z" fill="#FFBA00"/>
+          </svg>
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div className="fw7" style={{ fontSize:13, color:'var(--text)', marginBottom:2 }}>
+            {label || 'Google Drive PDF'}
+          </div>
+          <div className="text-xs muted" style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {input}
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+          {parsed?.view && (
+            <button className="btn btn-se btn-xs"
+              onClick={() => window.open(parsed.view, '_blank')}>
+              👁 Preview
+            </button>
+          )}
+          {parsed?.download && (
+            <button className="btn btn-pr btn-xs"
+              onClick={() => window.open(parsed.download, '_blank')}>
+              📥 Download
+            </button>
+          )}
+          <button className="btn btn-da btn-xs" onClick={handleClear}>✕</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+        {/* Google Drive icon */}
+        <div style={{ width:36, height:36, borderRadius:8, flexShrink:0, display:'flex',
+          alignItems:'center', justifyContent:'center', background:'rgba(66,133,244,.1)',
+          border:'1px solid rgba(66,133,244,.2)' }}>
+          <svg width="20" height="18" viewBox="0 0 87.3 78" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066DA"/>
+            <path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.35A9 9 0 000 52.8h27.5z" fill="#00AC47"/>
+            <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.85z" fill="#EA4335"/>
+            <path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832D"/>
+            <path d="M59.8 52.8H27.5L13.75 76.6c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.4 4.5-1.2z" fill="#2684FC"/>
+            <path d="M73.4 26.4l-12.8-22.2c-.8-1.4-1.95-2.5-3.3-3.2L43.65 25l16.15 27.8H87.2c0-1.55-.4-3.1-1.2-4.5z" fill="#FFBA00"/>
+          </svg>
+        </div>
+        <input
+          value={input}
+          onChange={e => { setInput(e.target.value); setError(''); setSaved(false); }}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
+          placeholder={placeholder || 'Paste Google Drive link here…'}
+          style={{ flex:1, padding:'9px 12px', borderRadius:9, fontSize:13,
+            background:'var(--bg3)', border:`1px solid ${error ? 'var(--red)' : 'rgba(66,133,244,.3)'}`,
+            color:'var(--text)', outline:'none' }}
+        />
+        <button className="btn btn-pr btn-sm" onClick={handleSave}
+          style={{ background:'rgba(66,133,244,1)', borderColor:'rgba(66,133,244,.8)', flexShrink:0 }}>
+          + Add
+        </button>
+      </div>
+      {error && <div style={{ fontSize:12, color:'var(--red)', marginTop:5 }}>⚠ {error}</div>}
+      <div className="text-xs muted" style={{ marginTop:5 }}>
+        💡 In Google Drive: right-click file → Share → Copy link → paste above
+      </div>
+    </div>
+  );
+}
+
+// ─── DRIVE FILE ROW ───────────────────────────────────────────────────────────
+// Displays a saved Google Drive link as a styled row with Preview/Download
+function DriveFileRow({ link, label, onRemove, canRemove }) {
+  const parsed = parseGDriveLink(link);
+  const name   = label || 'Google Drive PDF';
+  return (
+    <div style={{ borderRadius:10, padding:'10px 14px', background:'rgba(66,133,244,.06)',
+      border:'1px solid rgba(66,133,244,.2)', display:'flex', alignItems:'center', gap:10, marginBottom:6 }}>
+      <div style={{ width:34, height:34, borderRadius:8, flexShrink:0, display:'flex',
+        alignItems:'center', justifyContent:'center', background:'rgba(66,133,244,.12)' }}>
+        <svg width="18" height="16" viewBox="0 0 87.3 78" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066DA"/>
+          <path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.35A9 9 0 000 52.8h27.5z" fill="#00AC47"/>
+          <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.85z" fill="#EA4335"/>
+          <path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832D"/>
+          <path d="M59.8 52.8H27.5L13.75 76.6c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.4 4.5-1.2z" fill="#2684FC"/>
+          <path d="M73.4 26.4l-12.8-22.2c-.8-1.4-1.95-2.5-3.3-3.2L43.65 25l16.15 27.8H87.2c0-1.55-.4-3.1-1.2-4.5z" fill="#FFBA00"/>
+        </svg>
+      </div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div className="fw6" style={{ fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</div>
+        <div className="text-xs muted" style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{link}</div>
+      </div>
+      <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+        {parsed?.view && (
+          <button className="btn btn-se btn-xs" onClick={() => window.open(parsed.view, '_blank')}>👁 Preview</button>
+        )}
+        {parsed?.download && (
+          <button className="btn btn-pr btn-xs" onClick={() => window.open(parsed.download, '_blank')}>📥 Download</button>
+        )}
+        {canRemove && onRemove && (
+          <button className="btn btn-da btn-xs" onClick={onRemove}>✕</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function FileUploadWidget({ label, onFileStored, accept = ".pdf,.jpg,.jpeg,.png,.doc,.docx,.ppt,.pptx", bookId, lessonId }) {
   const [uploading, setUploading] = useState(false);
   const [pct,       setPct]       = useState(0);
@@ -1916,15 +2103,17 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
   const canEdit = userRole === "admin" || isTeacher;
 
   const [form, setForm] = useState({
-    bookId: lesson?.bookId ?? "",
-    chapterId: lesson?.chapterId ?? "",
-    title: lesson?.title ?? "",
-    description: lesson?.description ?? "",
-    fileId: lesson?.fileId ?? null,
-    extraFiles: lesson?.extraFiles ?? [],
-    homework: lesson?.homework ?? "",
-    homeworkDue: lesson?.homeworkDue ?? "",
-    teacherNotes: lesson?.teacherNotes ?? "",
+    bookId:          lesson?.bookId          ?? "",
+    chapterId:       lesson?.chapterId       ?? "",
+    title:           lesson?.title           ?? "",
+    description:     lesson?.description     ?? "",
+    fileId:          lesson?.fileId          ?? null,
+    driveLink:       lesson?.driveLink       ?? null,
+    extraFiles:      lesson?.extraFiles      ?? [],
+    extraDriveLinks: lesson?.extraDriveLinks ?? [],
+    homework:        lesson?.homework        ?? "",
+    homeworkDue:     lesson?.homeworkDue     ?? "",
+    teacherNotes:    lesson?.teacherNotes    ?? "",
   });
 
   const book = data.books.find(b => b.id === form.bookId || b.id === String(form.bookId));
@@ -1938,8 +2127,10 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
       chapterId: form.chapterId || null,
       title: form.title,
       description: form.description,
-      fileId: form.fileId,
-      extraFiles: form.extraFiles,
+      fileId: form.fileId || null,
+      driveLink: form.driveLink || null,
+      extraFiles: form.extraFiles || [],
+      extraDriveLinks: form.extraDriveLinks || [],
       homework: form.homework,
       homeworkDue: form.homeworkDue,
       teacherNotes: form.teacherNotes,
@@ -2089,16 +2280,47 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
         </div>
 
         <div className="fg">
-          <label>Lesson PDF / Main Material</label>
-          {form.fileId
-            ? <FileRow fileId={form.fileId} label="Lesson File" onPreview={f => setPdfViewer(f)} canRemove={true} onRemove={() => setForm(p => ({ ...p, fileId: null }))} />
-            : <FileUploadWidget label="Upload lesson PDF or slides" onFileStored={handleMainFile} lessonId={lesson?.id} />
-          }
+          <label>📄 Main PDF Material</label>
+          <div className="text-xs muted mb8">Paste a Google Drive link for a PDF, or upload an image below</div>
+          {/* Google Drive link for PDF */}
+          <GoogleDriveLinkInput
+            value={form.driveLink || ''}
+            label="Main PDF"
+            placeholder="Paste Google Drive PDF link…"
+            onSave={(link) => setForm(p => ({ ...p, driveLink: link || null }))}
+          />
+          {/* Image upload stays as-is */}
+          <div style={{ marginTop:10 }}>
+            <div className="text-xs muted mb6">Or upload an image:</div>
+            {form.fileId && !isGDriveLink(form.fileId)
+              ? <FileRow fileId={form.fileId} label="Lesson Image" onPreview={f => setPdfViewer(f)} canRemove={true} onRemove={() => setForm(p => ({ ...p, fileId: null }))} />
+              : <FileUploadWidget label="Upload image" accept=".jpg,.jpeg,.png,.gif,.webp" onFileStored={handleMainFile} lessonId={lesson?.id} />
+            }
+          </div>
         </div>
 
         <div className="fg">
-          <label>Extra Materials</label>
-          <FileUploadWidget label="Upload additional resources" onFileStored={handleExtraFile} lessonId={lesson?.id} />
+          <label>📁 Extra Materials (Google Drive links)</label>
+          {/* Option A: add one by one */}
+          <GoogleDriveLinkInput
+            value=""
+            label="Extra Material"
+            placeholder="Paste Google Drive link and click + Add…"
+            onSave={(link) => {
+              if (link && !form.extraDriveLinks?.includes(link)) {
+                setForm(p => ({ ...p, extraDriveLinks: [...(p.extraDriveLinks || []), link] }));
+              }
+            }}
+          />
+          {(form.extraDriveLinks || []).length > 0 && (
+            <div className="mt8">
+              {form.extraDriveLinks.map((link, i) => (
+                <DriveFileRow key={link+i} link={link} label={`Extra Material ${i+1}`} canRemove={true}
+                  onRemove={() => setForm(p => ({ ...p, extraDriveLinks: p.extraDriveLinks.filter((_, j) => j !== i) }))} />
+              ))}
+            </div>
+          )}
+          {/* Keep image extra files */}
           {form.extraFiles.length > 0 && (
             <div className="mt8">
               {form.extraFiles.map(fid => (
@@ -2320,11 +2542,29 @@ function BooksPage({ data, setData }) {
             {/* Book PDF */}
             <div className="mb16">
               <div className="sh-title mb8">Book PDF</div>
-              {freshBook.fileId
-                ? <FileRow fileId={freshBook.fileId} label="Book PDF" onPreview={f => setPdfViewer(f)} canRemove={true}
-                    onRemove={() => { setData(d => ({ ...d, books: d.books.map(b => b.id === freshBook.id ? { ...b, fileId: null } : b) })); setViewBook(v => ({ ...v, fileId: null })); }} />
-                : <FileUploadWidget label="Upload book PDF" onFileStored={handleBookFile} bookId={viewBook?.id} />
-              }
+              {/* Google Drive link for book PDF */}
+              <GoogleDriveLinkInput
+                value={freshBook.fileId && isGDriveLink(freshBook.fileId) ? freshBook.fileId : ''}
+                label="Book PDF"
+                placeholder="Paste Google Drive PDF link…"
+                onSave={(link, parsed) => {
+                  const val = link || null;
+                  setData(d => ({ ...d, books: d.books.map(b => b.id === freshBook.id ? { ...b, fileId: val } : b) }));
+                  setViewBook(v => ({ ...v, fileId: val }));
+                  if (link) {
+                    api.books.update(freshBook.id, { fileId: val }).catch(() => {});
+                    toast('✅ Book PDF link saved');
+                  }
+                }}
+              />
+              {/* Keep image upload working as-is for book cover images */}
+              {freshBook.fileId && !isGDriveLink(freshBook.fileId) && (
+                <FileRow fileId={freshBook.fileId} label="Book File" onPreview={f => setPdfViewer(f)} canRemove={true}
+                  onRemove={() => {
+                    setData(d => ({ ...d, books: d.books.map(b => b.id === freshBook.id ? { ...b, fileId: null } : b) }));
+                    setViewBook(v => ({ ...v, fileId: null }));
+                  }} />
+              )}
             </div>
 
             <div className="divider" />
@@ -7753,10 +7993,20 @@ function StudentMaterials({ user, data }) {
         if (!files.find(x => x.id === fid)) files.push({ id:fid, label:f.name||"File" });
       });
     }
-    if (!files.length) return null;
+    // Google Drive links
+    const driveLinks = [];
+    if (lesson.driveLink) driveLinks.push({ link: lesson.driveLink, label: "Main PDF" });
+    (lesson.extraDriveLinks||[]).forEach((link, i) => driveLinks.push({ link, label: `Extra Material ${i+1}` }));
+
+    if (!files.length && !driveLinks.length) return null;
 
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {/* Google Drive PDF links */}
+        {driveLinks.map((d, i) => (
+          <DriveFileRow key={d.link+i} link={d.link} label={d.label} canRemove={false} />
+        ))}
+        {/* Cloudinary image files */}
         {files.map((f, i) => {
           const file  = getFile(f.id);
           const type  = getFileType(f.id);
@@ -7894,7 +8144,11 @@ function StudentMaterials({ user, data }) {
       ...(lesson.extraFiles||[]),
       ...(lesson.files||[]).map(f => f.publicId||f.url||f),
     ].filter(Boolean);
-    const hasFiles     = allFiles.length > 0;
+    const driveFiles = [
+      lesson.driveLink,
+      ...(lesson.extraDriveLinks||[]),
+    ].filter(Boolean);
+    const hasFiles     = allFiles.length > 0 || driveFiles.length > 0;
     const isOverdue    = lesson.homeworkDue && lesson.homeworkDue < today;
     const isDueSoon    = lesson.homeworkDue && lesson.homeworkDue >= today &&
       lesson.homeworkDue <= new Date(Date.now()+3*24*60*60*1000).toISOString().split("T")[0];
@@ -8322,8 +8576,24 @@ function StudentMaterials({ user, data }) {
                       </div>
                     </div>
                   </div>
-                  {/* Book actions */}
-                  {book.fileId && getFile(book.fileId) && (
+                  {/* Book actions — Google Drive link */}
+                  {book.fileId && isGDriveLink(book.fileId) && (() => {
+                    const parsed = parseGDriveLink(book.fileId);
+                    return (
+                      <div style={{ display:"flex", flexDirection:"column", gap:6, flexShrink:0 }}>
+                        <button className="btn btn-se btn-sm"
+                          onClick={() => window.open(parsed.view, '_blank')}>
+                          👁 Preview
+                        </button>
+                        <button className="btn btn-pr btn-sm"
+                          onClick={() => window.open(parsed.download, '_blank')}>
+                          📥 Download
+                        </button>
+                      </div>
+                    );
+                  })()}
+                  {/* Book actions — Cloudinary image */}
+                  {book.fileId && !isGDriveLink(book.fileId) && getFile(book.fileId) && (
                     <div style={{ display:"flex", flexDirection:"column", gap:6, flexShrink:0 }}>
                       <button className="btn btn-se btn-sm"
                         onClick={() => openFile(book.fileId, book.title)}>

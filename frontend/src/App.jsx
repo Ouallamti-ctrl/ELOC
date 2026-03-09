@@ -1721,6 +1721,19 @@ function PdfViewer({ file, onClose }) {
   );
 }
 
+// Uploads a file to the backend and returns the Cloudinary URL/publicId
+async function storeFile(file, bookId, lessonId) {
+  if (bookId) {
+    const result = await api.books.uploadPDF(bookId, file);
+    return result.fileId || result.fileUrl || result.publicId || '';
+  }
+  if (lessonId) {
+    const result = await api.lessons.uploadFile(lessonId, file);
+    return result.fileId || result.fileUrl || result.publicId || '';
+  }
+  throw new Error('No bookId or lessonId provided');
+}
+
 function FileUploadWidget({ label, onFileStored, accept = ".pdf,.doc,.docx,.ppt,.pptx,.jpg,.png", bookId, lessonId }) {
   const [uploading, setUploading] = useState(false);
   const [pct, setPct] = useState(0);

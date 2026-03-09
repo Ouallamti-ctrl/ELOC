@@ -20,7 +20,6 @@ function createRateLimiter({ windowMs = 60000, max = 20, message = 'Too many req
 const loginLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, message: 'Too many login attempts, try again in 15 minutes' });
 const apiLimiter  = createRateLimiter({ windowMs: 60 * 1000, max: 300 });
 import authRouter from './routes/auth.js';
-import { proxyRouter } from './routes/proxy.js';
 import usersRouter from './routes/users.js';
 import {
   groupRouter, sessionRouter, paymentRouter,
@@ -59,7 +58,6 @@ app.use('/api/lessons',  lessonRouter);
 app.use('/api/series',   seriesRouter);
 app.use('/api/attendance',        attendanceRouter);
 app.use('/api/teacher-payments',  teacherPaymentRouter);
-app.use('/api/proxy-pdf',         proxyRouter);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) => res.json({ status: 'ok', time: new Date() }));

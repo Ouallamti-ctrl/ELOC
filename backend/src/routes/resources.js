@@ -444,3 +444,28 @@ attendanceRouter.delete('/:id', async (req, res) => {
   try { await Attendance.findByIdAndDelete(req.params.id); res.json({ ok: true }); }
   catch (err) { res.status(400).json({ message: err.message }); }
 });
+
+// ── PDF Proxy: serve Cloudinary file with correct Content-Type for inline display ──
+// GET /api/lessons/proxy?url=<encoded_cloudinary_url>
+lessonRouter.get('/proxy', async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ message: 'URL required' });
+    if (!url.includes('cloudinary.com')) return res.status(400).json({ message: 'Only Cloudinary URLs allowed' });
+    const https = await import('https');
+    const http  = await import('http');
+    const module = url.startsWith('https') ? https : http;
+    module.default.get(url, (upstream) => {
+      const isPdf = url.toLowerCase().includes('.pdf') || (upstream.headers['content-type']||'').includes('pdf');
+      res.set({
+        'Content-Type':        isPdf ? 'application/pdf' : (upstream.headers['content-type'] || 'application/octet-stream'),
+        'Content-Disposition': 'inline',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control':       'public, max-age=86400',
+      });
+      upstream.pipe(res);
+    }).on('error', e => res.status(500).json({ message: e.message }));
+  } catch(e) {
+    res.status(500).json({ message: e.message });
+  }
+});

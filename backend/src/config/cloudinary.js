@@ -10,10 +10,24 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
   cloudinary,
-  params: {
-    folder: 'eloc-files',
-    resource_type: 'auto',   // allows PDFs, images, etc.
-    allowed_formats: ['pdf', 'jpg', 'jpeg', 'png', 'docx', 'mp4', 'mp3'],
+  params: async (req, file) => {
+    const isPdf    = file.mimetype === 'application/pdf' || file.originalname?.toLowerCase().endsWith('.pdf');
+    const isImage  = file.mimetype?.startsWith('image/');
+    const isVideo  = file.mimetype?.startsWith('video/');
+    return {
+      folder:        'eloc-files',
+      // Use 'image' for PDFs so Cloudinary serves them with proper MIME type
+      // and allows inline preview without forcing download.
+      // 'auto' would work too but 'image' is explicit for PDF inline viewing.
+      resource_type: isVideo ? 'video' : isImage ? 'image' : isPdf ? 'image' : 'raw',
+      allowed_formats: ['pdf', 'jpg', 'jpeg', 'png', 'docx', 'mp4', 'mp3', 'gif', 'webp'],
+      // For PDFs keep original filename so URL ends with .pdf
+      public_id: isPdf
+        ? `${Date.now()}_${file.originalname.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '')}`
+        : undefined,
+      // Flag: do NOT force attachment download — allow inline preview
+      flags: isPdf ? 'attachment:false' : undefined,
+    };
   },
 });
 

@@ -2614,10 +2614,8 @@ function MaterialsPage({ user, data, setData }) {
 
   // ── data ──────────────────────────────────────────────────────────────────────
   const myGroups = data.groups.filter(g => String(g.teacherId) === String(user.id));
-  const myGroupIds = new Set(myGroups.map(g => g.id));
-
   // All sessions that belong to my groups
-  // myGroupIds as strings for reliable comparison
+  // using string IDs for reliable comparison
   const myGroupIdStrs = new Set(myGroups.map(g => String(g.id)));
   const mySessions = data.sessions.filter(s => myGroupIdStrs.has(String(s.groupId)));
 

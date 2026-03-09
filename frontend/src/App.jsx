@@ -650,13 +650,84 @@ tr:hover td{background:rgba(255,255,255,.018)}
 .pdf-placeholder{background:var(--bg2);border-radius:12px;padding:48px;text-align:center;
   max-width:600px;width:100%;border:1px solid var(--border)}
 /* Next lesson preview card */
-.next-lesson-card{border-radius:12px;border:1px solid rgba(249,115,22,.25);
+.next-lesson-card{border-radius:14px;border:1px solid rgba(249,115,22,.25);
   background:linear-gradient(135deg,rgba(249,115,22,.08),rgba(99,102,241,.02));
-  padding:16px;cursor:pointer;transition:all .15s}
+  padding:18px;transition:all .15s}
 .next-lesson-card:hover{border-color:var(--accent2);transform:translateY(-1px)}
 .next-lesson-label{font-size:10px;font-weight:700;color:var(--accent2);
-  text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;
+  text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;
   display:flex;align-items:center;gap:5px}
+/* Tab badge */
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;
+  min-width:18px;height:18px;border-radius:99px;background:rgba(249,115,22,.15);
+  color:var(--accent2);font-size:10px;font-weight:700;padding:0 5px;margin-left:5px}
+/* Materials lesson card */
+.mat-lesson-card{background:var(--bg2);border-radius:12px;border:1px solid var(--border);
+  overflow:hidden;transition:border-color .15s}
+.mat-lesson-card:hover{border-color:var(--border2)}
+.mat-lesson-header{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;
+  cursor:pointer;user-select:none}
+.mat-lesson-header:hover{background:rgba(255,255,255,.02)}
+.mat-lesson-icon{width:42px;height:42px;border-radius:11px;display:flex;
+  align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.mat-chevron{font-size:16px;color:var(--text3);margin-top:2px;transition:transform .2s;flex-shrink:0}
+.mat-lesson-body{padding:0 16px 16px;border-top:1px solid var(--border)}
+/* Material pills */
+.mat-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;
+  font-size:10px;font-weight:600;background:var(--bg4);color:var(--text2);border:1px solid var(--border)}
+.mat-pill-hw{background:rgba(245,158,11,.08);color:var(--amber);border-color:rgba(245,158,11,.2)}
+/* Status badges */
+.mat-badge-next{font-size:9px;font-weight:700;padding:2px 7px;border-radius:99px;
+  background:var(--glow);color:var(--accent2);border:1px solid rgba(249,115,22,.2)}
+.mat-badge-done{font-size:9px;font-weight:700;padding:2px 7px;border-radius:99px;
+  background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.2)}
+/* Material section inside expanded card */
+.mat-section{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.mat-section:first-child{border-top:none;padding-top:0;margin-top:14px}
+.mat-section-label{font-size:10px;font-weight:700;color:var(--accent2);
+  text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;
+  display:flex;align-items:center;gap:5px}
+.mat-section-text{font-size:13px;color:var(--text2);line-height:1.7;
+  white-space:pre-wrap}
+/* Material file card */
+.mat-file-card{display:flex;align-items:center;gap:12px;padding:11px 14px;
+  border-radius:10px;border:1px solid var(--border);margin-bottom:8px;transition:all .13s}
+.mat-file-card:hover{border-color:var(--border2);transform:translateX(2px)}
+.mat-file-icon{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;
+  justify-content:center;font-size:18px;flex-shrink:0}
+.mat-file-info{flex:1;min-width:0}
+.mat-file-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.mat-file-type{font-size:11px;color:var(--text3);margin-top:2px}
+/* Homework box */
+.hw-box{border-radius:10px;background:rgba(245,158,11,.05);
+  border:1px solid rgba(245,158,11,.18);padding:14px;margin-top:14px}
+.hw-box-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.hw-due{font-size:11px;font-weight:600}
+.hw-instructions{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px}
+/* Homework upload zone */
+.hw-upload-zone{border:2px dashed rgba(245,158,11,.3);border-radius:10px;
+  padding:24px 16px;text-align:center;cursor:pointer;transition:all .15s;
+  background:rgba(245,158,11,.03)}
+.hw-upload-zone:hover,.hw-upload-zone.drag-active{border-color:var(--amber);
+  background:rgba(245,158,11,.07);transform:scale(1.01)}
+.hw-uploading{text-align:center;padding:8px 0}
+.hw-progress-bar{height:6px;background:var(--bg4);border-radius:99px;overflow:hidden;
+  margin:0 auto;max-width:200px}
+.hw-progress-fill{height:100%;background:var(--amber);border-radius:99px;
+  animation:hw-prog 1.5s ease-in-out infinite}
+@keyframes hw-prog{0%{width:10%}50%{width:80%}100%{width:95%}}
+.hw-submitted{display:flex;align-items:center;gap:12px;padding:12px 14px;
+  background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);
+  border-radius:9px;margin-top:4px}
+/* Updated PDF viewer */
+.pdf-viewer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:2000;
+  display:flex;flex-direction:column;animation:fadeIn .2s}
+.pdf-viewer-bar{height:56px;background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 16px;
+  flex-shrink:0;gap:12px}
+.pdf-viewer-body{flex:1;overflow:auto;display:flex;align-items:flex-start;
+  justify-content:center;padding:16px}
 /* Upload zone */
 .upload-zone{border:1px dashed var(--border2);border-radius:9px;padding:16px;
   text-align:center;cursor:pointer;transition:all .13s;background:var(--bg3)}
@@ -1432,68 +1503,222 @@ function SeriesManager({ data, setData, filteredSeries }) {
 
 // ─── PDF VIEWER ───────────────────────────────────────────────────────────────
 function PdfViewer({ file, onClose }) {
+  const [zoom,         setZoom]         = useState(100);
+  const [page,         setPage]         = useState(1);
+  const [totalPages,   setTotalPages]   = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
+  const [pdfDoc,       setPdfDoc]       = useState(null);
+  const canvasRef  = useRef(null);
+  const overlayRef = useRef(null);
+  const renderRef  = useRef(null); // track ongoing render task
+
   if (!file) return null;
+
+  const url  = file.dataUrl || '';
+  const name = file.name || 'file';
+  const isPdf = file.type === 'application/pdf'
+    || url.toLowerCase().includes('.pdf')
+    || url.includes('/raw/upload/');
+  const isImage = file.type?.startsWith('image/')
+    || /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
+
+  // Build best fetch URL for Cloudinary PDFs
+  // Switch resource_type raw -> image so Cloudinary serves with correct MIME
+  const buildFetchUrl = (rawUrl) => {
+    if (!rawUrl) return rawUrl;
+    if (rawUrl.includes('res.cloudinary.com')) {
+      // raw/upload → image/upload so browser gets content-type: application/pdf
+      let u = rawUrl.replace('/raw/upload/', '/image/upload/');
+      // Add fl_attachment:false so it doesn't force download
+      u = u.replace('/image/upload/', '/image/upload/fl_attachment:false/');
+      return u;
+    }
+    return rawUrl;
+  };
+  const fetchUrl = buildFetchUrl(url);
+
+  // ── PDF.js rendering via CDN ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!isPdf || !url) return;
+    setLoading(true); setError(null); setPdfDoc(null); setPage(1); setTotalPages(null);
+
+    const loadPdf = async () => {
+      try {
+        // Load PDF.js from CDN if not already loaded
+        if (!window.pdfjsLib) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            s.onload = resolve; s.onerror = reject;
+            document.head.appendChild(s);
+          });
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        // Fetch PDF as ArrayBuffer to bypass CORS on Cloudinary raw URLs
+        const resp = await fetch(fetchUrl, { mode: 'cors' });
+        if (!resp.ok) throw new Error(`Failed to load PDF (${resp.status})`);
+        const buffer = await resp.arrayBuffer();
+
+        const doc = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+        setPdfDoc(doc);
+        setTotalPages(doc.numPages);
+        setLoading(false);
+      } catch(e) {
+        console.error('PDF load error:', e);
+        setError(e.message);
+        setLoading(false);
+      }
+    };
+    loadPdf();
+  }, [url]);
+
+  // ── Render current page onto canvas ───────────────────────────────────────
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current || !isPdf) return;
+    const renderPage = async () => {
+      try {
+        // Cancel previous render
+        if (renderRef.current) { try { renderRef.current.cancel(); } catch(_){} }
+        const pg    = await pdfDoc.getPage(page);
+        const scale = zoom / 100 * window.devicePixelRatio;
+        const vp    = pg.getViewport({ scale });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        canvas.height = vp.height;
+        canvas.width  = vp.width;
+        canvas.style.width  = (vp.width  / window.devicePixelRatio) + 'px';
+        canvas.style.height = (vp.height / window.devicePixelRatio) + 'px';
+        const ctx = canvas.getContext('2d');
+        const task = pg.render({ canvasContext: ctx, viewport: vp });
+        renderRef.current = task;
+        await task.promise;
+      } catch(e) {
+        if (e?.name !== 'RenderingCancelledException') console.error('Render error:', e);
+      }
+    };
+    renderPage();
+  }, [pdfDoc, page, zoom]);
+
+  const toggleFullscreen = () => {
+    const el = overlayRef.current;
+    if (!document.fullscreenElement) {
+      el?.requestFullscreen?.();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.();
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight' && page < totalPages) setPage(p => p + 1);
+      if (e.key === 'ArrowLeft'  && page > 1)          setPage(p => p - 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [page, totalPages]);
+
   return (
-    <div className="pdf-viewer-overlay">
-      <div className="pdf-viewer-bar">
-        <div className="flex ac gap10">
-          <span style={{ fontSize: 18 }}>📄</span>
-          <span className="fw7" style={{ fontSize: 14 }}>{file.name}</span>
-          {file.size && <span className="text-xs muted mono">{(file.size / 1024).toFixed(0)} KB</span>}
+    <div ref={overlayRef} className="pdf-viewer-overlay" onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ display:'flex', flexDirection:'column' }}>
+
+      {/* ── Top bar ── */}
+      <div className="pdf-viewer-bar" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px',
+        background:'var(--bg1)', borderBottom:'1px solid var(--border)', flexShrink:0, flexWrap:'wrap' }}>
+
+        {/* File info */}
+        <div style={{ display:'flex', alignItems:'center', gap:10, flex:1, minWidth:0 }}>
+          <div style={{ width:34, height:34, borderRadius:8, flexShrink:0,
+            background: isPdf ? 'rgba(239,68,68,.15)' : 'rgba(99,102,241,.15)',
+            display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>
+            {isPdf ? '📄' : isImage ? '🖼' : '📎'}
+          </div>
+          <div style={{ minWidth:0 }}>
+            <div className="fw7" style={{ fontSize:13, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:280 }}>{name}</div>
+            <div className="text-xs muted">{isPdf ? `PDF · ${totalPages ? totalPages+' pages' : 'Loading...'}` : isImage ? 'Image' : 'Document'}</div>
+          </div>
         </div>
-        <div className="flex gap8">
-          {file.dataUrl && (
-            <a href={file.dataUrl} download={file.name}>
-              <button className="btn btn-se btn-sm">📥 Download</button>
-            </a>
+
+        {/* Controls */}
+        <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+          {/* Page nav */}
+          {isPdf && totalPages && (
+            <div style={{ display:'flex', alignItems:'center', gap:4, background:'var(--bg3)', borderRadius:8, padding:'4px 8px' }}>
+              <button className="btn btn-se btn-xs" onClick={() => setPage(p => Math.max(1, p-1))} disabled={page<=1}>◀</button>
+              <span className="text-xs mono" style={{ color:'var(--text2)', minWidth:56, textAlign:'center' }}>{page} / {totalPages}</span>
+              <button className="btn btn-se btn-xs" onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page>=totalPages}>▶</button>
+            </div>
           )}
-          <button className="btn btn-da btn-sm" onClick={onClose}>✕ Close</button>
+          {/* Zoom */}
+          {isPdf && (
+            <div style={{ display:'flex', alignItems:'center', gap:4, background:'var(--bg3)', borderRadius:8, padding:'4px 8px' }}>
+              <button className="btn btn-se btn-xs" onClick={() => setZoom(z => Math.max(50, z-25))}>−</button>
+              <span className="text-xs mono" style={{ color:'var(--text2)', minWidth:38, textAlign:'center' }}>{zoom}%</span>
+              <button className="btn btn-se btn-xs" onClick={() => setZoom(z => Math.min(250, z+25))}>+</button>
+              <button className="btn btn-se btn-xs" onClick={() => setZoom(100)} style={{ fontSize:9 }}>FIT</button>
+            </div>
+          )}
+          <button className="btn btn-se btn-sm" onClick={toggleFullscreen} title="Fullscreen">{isFullscreen ? '⊡' : '⛶'}</button>
+          {url && (
+            <button className="btn btn-pr btn-sm" onClick={() => downloadFile(url, name)}>📥 Download</button>
+          )}
+          <button className="btn btn-se btn-sm" onClick={onClose} style={{ fontWeight:700 }}>✕ Close</button>
         </div>
       </div>
-      <div className="pdf-viewer-body">
-        {file.dataUrl && file.type === "application/pdf" ? (
-          <iframe src={file.dataUrl} style={{ width: "100%", maxWidth: 860, height: "80vh", border: "none", borderRadius: 8 }} title={file.name} />
-        ) : file.dataUrl && file.type?.startsWith("image/") ? (
-          <img src={file.dataUrl} alt={file.name} style={{ maxWidth: 860, maxHeight: "80vh", borderRadius: 8 }} />
-        ) : (
-          <div className="pdf-placeholder">
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📄</div>
-            <div className="fw7" style={{ fontSize: 16, marginBottom: 8 }}>{file.name}</div>
-            <div className="muted text-sm mb16">Preview not available for this file type.</div>
-            {file.dataUrl && (
-              <a href={file.dataUrl} download={file.name}>
-                <button className="btn btn-pr">📥 Download File</button>
-              </a>
-            )}
+
+      {/* ── Content area ── */}
+      <div style={{ flex:1, overflow:'auto', display:'flex', alignItems:'flex-start', justifyContent:'center',
+        padding:'20px', background:'var(--bg0, #111)' }}>
+
+        {/* Loading */}
+        {loading && (
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            gap:12, marginTop:80, color:'var(--text3)' }}>
+            <div style={{ width:36, height:36, border:'3px solid var(--border)', borderTopColor:'var(--accent)',
+              borderRadius:'50%', animation:'spin 1s linear infinite' }} />
+            <div className="text-sm">Loading PDF…</div>
           </div>
+        )}
+
+        {/* Error state with Google Docs fallback */}
+        {!loading && error && isPdf && (
+          <div style={{ width:'100%', maxWidth:700, display:'flex', flexDirection:'column', gap:12 }}>
+            <div style={{ padding:'14px 16px', borderRadius:10, background:'rgba(239,68,68,.08)',
+              border:'1px solid rgba(239,68,68,.2)', color:'var(--red)', fontSize:13 }}>
+              ⚠ Could not render PDF directly. Using fallback viewer.
+            </div>
+            <iframe
+              src={`https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`}
+              style={{ width:'100%', height:'70vh', border:'none', borderRadius:10 }}
+              title={name}
+            />
+          </div>
+        )}
+
+        {/* PDF Canvas */}
+        {!loading && !error && isPdf && (
+          <div style={{ boxShadow:'0 8px 40px rgba(0,0,0,.6)', borderRadius:4, background:'white', lineHeight:0 }}>
+            <canvas ref={canvasRef} style={{ display:'block', borderRadius:4 }} />
+          </div>
+        )}
+
+        {/* Image */}
+        {isImage && (
+          <img src={url} alt={name} style={{
+            maxWidth:'100%', maxHeight:'85vh', borderRadius:8, objectFit:'contain',
+            transform:`scale(${zoom/100})`, transformOrigin:'top center', transition:'transform .2s',
+            boxShadow:'0 8px 40px rgba(0,0,0,.5)',
+          }} />
         )}
       </div>
     </div>
   );
-}
-
-// ─── FILE UPLOAD WIDGET ───────────────────────────────────────────────────────
-async function storeFile(file, bookId, lessonId) {
-  // Wrap with timeout - Render free tier can be slow to wake
-  const withTimeout = (promise, ms = 60000) => {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload timed out. Try again.")), ms));
-    return Promise.race([promise, timeout]);
-  };
-  try {
-    if (bookId) {
-      const r = await withTimeout(api.books.uploadPDF(bookId, file));
-      return r?.fileId || r?._id || bookId;
-    }
-    if (lessonId) {
-      const r = await withTimeout(api.lessons.uploadFile(lessonId, file));
-      return r?.fileId || r?._id || lessonId;
-    }
-    return URL.createObjectURL(file);
-  } catch(e) {
-    console.error("storeFile error:", e);
-    toast(e.message || "Upload failed - please try again", "error");
-    return null;
-  }
 }
 
 function FileUploadWidget({ label, onFileStored, accept = ".pdf,.doc,.docx,.ppt,.pptx,.jpg,.png", bookId, lessonId }) {
@@ -1539,19 +1764,28 @@ function getFile(fileId) {
   if (!fileId) return null;
   const isUrl = typeof fileId === 'string' && (fileId.startsWith('http') || fileId.startsWith('blob'));
   const cloud = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'eloc-international';
-  const dataUrl = isUrl ? fileId : `https://res.cloudinary.com/${cloud}/raw/upload/${fileId}`;
+  const rawUrl = isUrl ? fileId : `https://res.cloudinary.com/${cloud}/raw/upload/${fileId}`;
   const name = typeof fileId === 'string' ? fileId.split('/').pop()?.split('?')[0] || 'file' : 'file';
-  return { id: fileId, dataUrl, name };
+  const ext = name.split('.').pop()?.toLowerCase();
+  const isPdf = ext === 'pdf' || rawUrl.toLowerCase().includes('.pdf');
+  // For PDFs served from Cloudinary, use the backend proxy so correct Content-Type is returned
+  const BASE_API = import.meta.env?.VITE_API_URL || 'https://eloc-backend.onrender.com/api';
+  const dataUrl = isPdf && rawUrl.includes('cloudinary.com')
+    ? `${BASE_API}/api/lessons/proxy?url=${encodeURIComponent(rawUrl)}`
+    : rawUrl;
+  return { id: fileId, dataUrl, name, type: isPdf ? 'application/pdf' : undefined, rawUrl };
 }
 
-// Cross-origin safe download: fetch the file as a blob then trigger browser download
+// Cross-origin safe download: route through backend proxy for Cloudinary, or direct fetch
+const BACKEND = import.meta.env.VITE_API_URL || 'https://eloc-backend.onrender.com/api';
+
 async function downloadFile(url, filename) {
+  if (!url) return;
   try {
-    // For Cloudinary URLs inject fl_attachment for proper content-disposition
-    let fetchUrl = url;
-    if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
-      fetchUrl = url.replace('/upload/', '/upload/fl_attachment/');
-    }
+    // Use backend proxy for Cloudinary URLs to bypass CORS
+    const fetchUrl = url.includes('res.cloudinary.com')
+      ? `${BACKEND}/proxy-pdf?url=${encodeURIComponent(url)}`
+      : url;
     const response = await fetch(fetchUrl);
     if (!response.ok) throw new Error('Download failed');
     const blob = await response.blob();
@@ -1562,7 +1796,7 @@ async function downloadFile(url, filename) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 8000);
   } catch(e) {
     // Fallback: open in new tab
     window.open(url, '_blank');
@@ -7333,18 +7567,22 @@ function StudentAttendance({ user, data }) {
 // ─── STUDENT MATERIALS PAGE ───────────────────────────────────────────────────
 function StudentMaterials({ user, data }) {
   data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
-  const [pdfViewer, setPdfViewer] = useState(null);
-  const [activeTab, setActiveTab] = useState("lessons");
 
-  const myGroup = data.groups.find(g => g.id === user.groupId);
-  const mySessions = data.sessions
+  const [pdfViewer,    setPdfViewer]    = useState(null);
+  const [activeTab,    setActiveTab]    = useState("lessons");
+  const [expandedCard, setExpandedCard] = useState(null);
+  const [hwUploads,    setHwUploads]    = useState({});
+  const [dragOver,     setDragOver]     = useState(null);
+  const [hwFilter,     setHwFilter]     = useState("all");
+  const [lessonSearch, setLessonSearch] = useState("");
+
+  const myGroup           = data.groups.find(g => g.id === user.groupId);
+  const mySessions        = data.sessions
     .filter(s => s.groupId === user.groupId && !s.isCancelled)
     .sort((a, b) => a.date.localeCompare(b.date));
-
   const completedSessions = mySessions.filter(s => s.status === "completed");
-  const upcomingSessions = mySessions.filter(s => s.status === "upcoming");
+  const upcomingSessions  = mySessions.filter(s => s.status === "upcoming");
 
-  // Get lesson for session (session-specific first, then series-level)
   const getLessonForSession = (s) =>
     data.lessons.find(l => l.sessionId === s.id)
     ?? (s.seriesId ? data.lessons.find(l => l.seriesId === s.seriesId && !l.sessionId) : null);
@@ -7352,205 +7590,712 @@ function StudentMaterials({ user, data }) {
   const lessonsWithContent = mySessions
     .map(s => ({ session: s, lesson: getLessonForSession(s) }))
     .filter(x => x.lesson);
-
   const homeworks = lessonsWithContent.filter(x => x.lesson.homework);
+  const myBooks   = data.books.filter(b => b.assignedGroups?.includes(user.groupId));
 
-  // Books assigned to my group
-  const myBooks = data.books.filter(b => b.assignedGroups?.includes(user.groupId));
+  // Filtered lessons for search
+  const filteredLessons = lessonSearch.trim()
+    ? lessonsWithContent.filter(({ lesson, session: s }) =>
+        (lesson.title||s.title||"").toLowerCase().includes(lessonSearch.toLowerCase()) ||
+        (lesson.description||"").toLowerCase().includes(lessonSearch.toLowerCase()))
+    : lessonsWithContent;
 
+  // File helpers
+  const fileExt = (url = "") => (url.split(".").pop()?.split("?")[0] || "").toLowerCase();
+  const getFileType = (fileId) => {
+    if (!fileId) return "unknown";
+    const ext = fileExt(typeof fileId === "string" ? fileId : "");
+    if (ext === "pdf") return "pdf";
+    if (["jpg","jpeg","png","gif","webp"].includes(ext)) return "image";
+    if (["doc","docx"].includes(ext)) return "doc";
+    if (["mp4","mov","avi"].includes(ext)) return "video";
+    if (["mp3","wav","ogg"].includes(ext)) return "audio";
+    return "file";
+  };
+  const fileLabel = (fileId) => {
+    if (!fileId) return "File";
+    const name = fileId.split("/").pop()?.split("?")[0] || "file";
+    try { return decodeURIComponent(name); } catch(_) { return name; }
+  };
+  const fileIcon = (fileId) => {
+    const t = getFileType(fileId);
+    return { pdf:"📄", image:"🖼", doc:"📝", video:"🎬", audio:"🎵", file:"📎" }[t] || "📎";
+  };
+  const fileColor = (fileId) => {
+    const t = getFileType(fileId);
+    return {
+      pdf:   { bg:"rgba(239,68,68,.12)",   color:"#ef4444" },
+      image: { bg:"rgba(99,102,241,.12)",  color:"#818cf8" },
+      doc:   { bg:"rgba(59,130,246,.12)",  color:"#60a5fa" },
+      video: { bg:"rgba(168,85,247,.12)",  color:"#c084fc" },
+      audio: { bg:"rgba(34,197,94,.12)",   color:"#4ade80" },
+      file:  { bg:"rgba(249,115,22,.12)",  color:"var(--accent2)" },
+    }[t] || { bg:"var(--bg3)", color:"var(--text3)" };
+  };
+
+  // Open file - PDF gets viewer, image gets viewer, others download
+  const openFile = (fileId, label) => {
+    const file = getFile(fileId);
+    if (!file) return;
+    const type = getFileType(fileId);
+    if (type === "pdf" || type === "image") {
+      setPdfViewer({ ...file, type: type === "pdf" ? "application/pdf" : "image/"+fileExt(fileId) });
+    } else {
+      downloadFile(file.dataUrl, file.name || label || fileLabel(fileId));
+    }
+  };
+
+  // Homework upload
+  const handleHwUpload = async (lessonId, file) => {
+    if (!file) return;
+    setHwUploads(p => ({ ...p, [lessonId]: { file, status:"uploading", progress:10 } }));
+    try {
+      setHwUploads(p => ({ ...p, [lessonId]: { ...p[lessonId], progress:40 } }));
+      await api.lessons.uploadFile(lessonId, file);
+      setHwUploads(p => ({ ...p, [lessonId]: { file, status:"done", progress:100 } }));
+      toast("✅ Homework submitted successfully!");
+    } catch(e) {
+      setHwUploads(p => ({ ...p, [lessonId]: { file, status:"error", progress:0 } }));
+      toast(e.message || "Upload failed", "error");
+    }
+  };
+
+  // ── Section label component ────────────────────────────────────────────────
+  const SectionLabel = ({ icon, label, color="#6366f1", bg="rgba(99,102,241,.12)", right }) => (
+    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+      <div style={{ width:20, height:20, borderRadius:5, background:bg, color, display:"flex",
+        alignItems:"center", justifyContent:"center", fontSize:11, flexShrink:0 }}>{icon}</div>
+      <span style={{ fontSize:10, fontWeight:800, letterSpacing:".8px", textTransform:"uppercase",
+        color:"var(--text3)" }}>{label}</span>
+      {right && <div style={{ marginLeft:"auto" }}>{right}</div>}
+    </div>
+  );
+
+  // ── File list ─────────────────────────────────────────────────────────────
+  const LessonFileList = ({ lesson }) => {
+    const files = [];
+    if (lesson.fileId) files.push({ id:lesson.fileId, label:"Main Material" });
+    (lesson.extraFiles||[]).forEach((fid, i) => files.push({ id:fid, label:`Material ${i+2}` }));
+    if (lesson.files?.length) {
+      lesson.files.forEach(f => {
+        const fid = f.publicId || f.url || f;
+        if (!files.find(x => x.id === fid)) files.push({ id:fid, label:f.name||"File" });
+      });
+    }
+    if (!files.length) return null;
+
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {files.map((f, i) => {
+          const file  = getFile(f.id);
+          const type  = getFileType(f.id);
+          const icon  = fileIcon(f.id);
+          const clr   = fileColor(f.id);
+          const name  = fileLabel(f.id) !== "file" ? fileLabel(f.id) : f.label;
+          return (
+            <div key={f.id+i} style={{
+              display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+              borderRadius:10, background:"var(--bg3)", border:"1px solid var(--border)",
+              transition:"all .15s", cursor:"pointer",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor="var(--accent)"; e.currentTarget.style.background="var(--bg4)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor="var(--border)"; e.currentTarget.style.background="var(--bg3)"; }}
+              onClick={() => openFile(f.id, name)}
+            >
+              {/* File type icon badge */}
+              <div style={{ width:38, height:38, borderRadius:9, flexShrink:0, background:clr.bg,
+                color:clr.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17 }}>
+                {icon}
+              </div>
+              {/* File info */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div className="fw6" style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis",
+                  whiteSpace:"nowrap", marginBottom:2 }}>{name}</div>
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <span style={{ fontSize:10, fontWeight:700, padding:"1px 6px", borderRadius:4,
+                    background:clr.bg, color:clr.color, letterSpacing:".4px" }}>{type.toUpperCase()}</span>
+                </div>
+              </div>
+              {/* Action buttons */}
+              <div style={{ display:"flex", gap:6, flexShrink:0 }} onClick={e => e.stopPropagation()}>
+                {file && (type === "pdf" || type === "image") && (
+                  <button className="btn btn-se btn-xs" onClick={() => openFile(f.id, name)}>
+                    👁 Preview
+                  </button>
+                )}
+                {file && (
+                  <button className="btn btn-pr btn-xs"
+                    onClick={() => downloadFile(file.dataUrl, file.name || name)}>
+                    📥 Download
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // ── Homework upload box ───────────────────────────────────────────────────
+  const HwUploadBox = ({ lessonId }) => {
+    const state    = hwUploads[lessonId];
+    const isDrag   = dragOver === lessonId;
+    const inputRef = useRef();
+
+    const onDrop = (e) => {
+      e.preventDefault(); setDragOver(null);
+      const file = e.dataTransfer.files[0];
+      if (file) handleHwUpload(lessonId, file);
+    };
+
+    if (state?.status === "done") return (
+      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", borderRadius:10,
+        background:"rgba(34,197,94,.08)", border:"1px solid rgba(34,197,94,.2)" }}>
+        <div style={{ width:34, height:34, borderRadius:8, background:"rgba(34,197,94,.12)",
+          display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>✅</div>
+        <div style={{ flex:1 }}>
+          <div className="fw7" style={{ fontSize:13, color:"var(--green)" }}>Homework submitted!</div>
+          <div className="text-xs muted">{state.file?.name}</div>
+        </div>
+        <button className="btn btn-se btn-xs"
+          onClick={() => setHwUploads(p => ({ ...p, [lessonId]:null }))}>
+          Upload again
+        </button>
+      </div>
+    );
+
+    if (state?.status === "uploading") return (
+      <div style={{ padding:"12px 14px", borderRadius:10, background:"var(--bg3)",
+        border:"1px solid var(--border)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+          <span className="fw6" style={{ fontSize:13 }}>Uploading {state.file?.name}…</span>
+          <span className="text-xs muted">{state.progress}%</span>
+        </div>
+        <div style={{ height:5, background:"var(--bg4)", borderRadius:99, overflow:"hidden" }}>
+          <div style={{ height:"100%", width:`${state.progress}%`,
+            background:"linear-gradient(90deg,var(--accent),var(--accent2))",
+            borderRadius:99, transition:"width .4s" }} />
+        </div>
+      </div>
+    );
+
+    return (
+      <div
+        onClick={() => inputRef.current?.click()}
+        onDragOver={e => { e.preventDefault(); setDragOver(lessonId); }}
+        onDragLeave={() => setDragOver(null)}
+        onDrop={onDrop}
+        style={{
+          padding:"18px 16px", borderRadius:10, cursor:"pointer", textAlign:"center",
+          transition:"all .2s",
+          border:`2px dashed ${isDrag ? "var(--accent)" : "var(--border)"}`,
+          background: isDrag ? "var(--glow)" : "var(--bg3)",
+        }}
+      >
+        <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          style={{ display:"none" }}
+          onChange={e => { const f = e.target.files[0]; if (f) handleHwUpload(lessonId, f); }} />
+        <div style={{ fontSize:26, marginBottom:6 }}>📤</div>
+        <div className="fw7" style={{ fontSize:13, marginBottom:3 }}>Upload Homework</div>
+        <div className="text-xs muted">PDF · Image · DOC — drag & drop or click to browse</div>
+        {state?.status === "error" && (
+          <div style={{ marginTop:8, fontSize:12, color:"var(--red)",
+            padding:"6px 10px", borderRadius:6, background:"rgba(239,68,68,.08)" }}>
+            ⚠ Upload failed — please try again
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── Lesson Card ───────────────────────────────────────────────────────────
+  const LessonCard = ({ session: s, lesson, index }) => {
+    const book      = data.books.find(b => b.id === lesson.bookId);
+    const chapter   = book?.chapters?.find(ch => ch.id === lesson.chapterId);
+    const isPast    = s.status === "completed";
+    const isNext    = s.id === upcomingSessions[0]?.id;
+    const isOpen    = expandedCard === s.id;
+    const today     = new Date().toISOString().split("T")[0];
+    const hwState   = hwUploads[lesson.id];
+    const allFiles  = [
+      lesson.fileId && lesson.fileId,
+      ...(lesson.extraFiles||[]),
+      ...(lesson.files||[]).map(f => f.publicId||f.url||f),
+    ].filter(Boolean);
+    const hasFiles     = allFiles.length > 0;
+    const isOverdue    = lesson.homeworkDue && lesson.homeworkDue < today;
+    const isDueSoon    = lesson.homeworkDue && lesson.homeworkDue >= today &&
+      lesson.homeworkDue <= new Date(Date.now()+3*24*60*60*1000).toISOString().split("T")[0];
+    const accentLeft   = isNext ? "var(--accent)" : isPast ? "var(--green)" : "var(--border)";
+
+    return (
+      <div id={`lesson-${s.id}`} style={{
+        borderRadius:14, background:"var(--bg2)", marginBottom:12, overflow:"hidden",
+        border:"1px solid var(--border)", borderLeft:`4px solid ${accentLeft}`,
+        transition:"box-shadow .15s, transform .1s",
+        boxShadow: isOpen ? "0 6px 28px rgba(0,0,0,.18)" : "none",
+      }}>
+
+        {/* ── Header (click to expand) ── */}
+        <div style={{ padding:"14px 16px", cursor:"pointer", userSelect:"none" }}
+          onClick={() => setExpandedCard(isOpen ? null : s.id)}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+
+            {/* Number / status badge */}
+            <div style={{
+              width:42, height:42, borderRadius:10, flexShrink:0,
+              display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13,
+              background: isPast ? "rgba(34,197,94,.1)" : isNext ? "var(--glow)" : "var(--bg3)",
+              color:      isPast ? "var(--green)"        : isNext ? "var(--accent2)" : "var(--text3)",
+              border:`1px solid ${isPast ? "rgba(34,197,94,.2)" : isNext ? "rgba(249,115,22,.2)" : "var(--border)"}`,
+            }}>
+              {isPast ? "✓" : `#${index+1}`}
+            </div>
+
+            {/* Title + meta */}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:3 }}>
+                <div className="fw7" style={{ fontSize:14.5 }}>{lesson.title || s.title}</div>
+                {isNext && (
+                  <span style={{ fontSize:9, fontWeight:800, letterSpacing:".8px", padding:"2px 7px",
+                    borderRadius:99, background:"var(--glow)", color:"var(--accent2)",
+                    border:"1px solid rgba(249,115,22,.2)", textTransform:"uppercase" }}>NEXT</span>
+                )}
+                {lesson.homework && (
+                  <span style={{ fontSize:9, fontWeight:700, letterSpacing:".5px", padding:"2px 6px",
+                    borderRadius:99, textTransform:"uppercase",
+                    background: isOverdue ? "rgba(239,68,68,.12)" : isDueSoon ? "rgba(245,158,11,.12)" : "rgba(249,115,22,.08)",
+                    color: isOverdue ? "var(--red)" : isDueSoon ? "var(--amber)" : "var(--text3)" }}>
+                    {isOverdue ? "⚠ Overdue" : isDueSoon ? "⏰ Due soon" : "📝 Homework"}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs muted" style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+                <span>📅 {s.date}</span>
+                {(s.startTime||s.time) && <span>🕐 {s.startTime||s.time}</span>}
+                {book && <span>📚 {book.title}{chapter ? ` · ${chapter.title}` : ""}</span>}
+                {hasFiles && (
+                  <span style={{ color:"var(--accent2)", fontWeight:600 }}>
+                    📎 {allFiles.length} file{allFiles.length!==1?"s":""}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Right side */}
+            <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
+              <Badge status={isPast ? "paid" : "pending"} label={isPast ? "Done" : "Upcoming"} />
+              <span style={{ fontSize:20, color:"var(--text3)", transition:"transform .2s",
+                transform: isOpen ? "rotate(180deg)" : "none" }}>⌄</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Expanded content ── */}
+        {isOpen && (
+          <div style={{ borderTop:"1px solid var(--border)" }}>
+
+            {/* SECTION 1: Lesson Content */}
+            {lesson.description && (
+              <div style={{ padding:"16px 18px", borderBottom:"1px solid var(--border)" }}>
+                <SectionLabel icon="✏" label="Lesson Content"
+                  color="#818cf8" bg="rgba(99,102,241,.12)" />
+                <div style={{
+                  fontSize:14, lineHeight:1.8, color:"var(--text2)", whiteSpace:"pre-wrap",
+                  padding:"12px 14px", borderRadius:10, background:"var(--bg3)",
+                  border:"1px solid var(--border)",
+                }}>
+                  {lesson.description}
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 2: Material Files */}
+            {hasFiles && (
+              <div style={{ padding:"16px 18px", borderBottom:"1px solid var(--border)" }}>
+                <SectionLabel icon="📁" label="Materials"
+                  color="var(--accent2)" bg="rgba(249,115,22,.12)"
+                  right={
+                    <span className="text-xs muted">
+                      {allFiles.length} file{allFiles.length!==1?"s":""} · click to preview
+                    </span>
+                  }
+                />
+                <LessonFileList lesson={lesson} />
+              </div>
+            )}
+
+            {/* SECTION 3: Homework */}
+            {lesson.homework && (
+              <div style={{ padding:"16px 18px" }}>
+                <SectionLabel icon="📝" label="Homework"
+                  color="var(--amber)" bg="rgba(245,158,11,.12)"
+                  right={lesson.homeworkDue && (
+                    <span style={{ fontSize:11, fontWeight:700, padding:"3px 8px", borderRadius:6,
+                      background: isOverdue ? "rgba(239,68,68,.12)" : isDueSoon ? "rgba(245,158,11,.12)" : "var(--bg3)",
+                      color: isOverdue ? "var(--red)" : isDueSoon ? "var(--amber)" : "var(--text3)",
+                      border:`1px solid ${isOverdue ? "rgba(239,68,68,.2)" : isDueSoon ? "rgba(245,158,11,.2)" : "var(--border)"}`,
+                    }}>
+                      📅 Due: {lesson.homeworkDue}
+                    </span>
+                  )}
+                />
+                <div style={{ fontSize:13.5, color:"var(--text2)", lineHeight:1.7, marginBottom:12,
+                  padding:"12px 14px", borderRadius:10,
+                  background:"rgba(245,158,11,.06)", border:"1px solid rgba(245,158,11,.12)" }}>
+                  {lesson.homework}
+                </div>
+                <HwUploadBox lessonId={lesson.id} />
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!lesson.description && !hasFiles && !lesson.homework && (
+              <div style={{ padding:"28px 16px", textAlign:"center", color:"var(--text3)", fontSize:13 }}>
+                No content uploaded yet for this lesson.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div>
+      {/* ── Page header ── */}
       <div className="ph">
         <div>
-          <div className="ph-title">My Materials</div>
-          <div className="ph-sub">{lessonsWithContent.length} lessons · {myBooks.length} books · {homeworks.length} homework assignments</div>
+          <div className="ph-title">📚 My Materials</div>
+          <div className="ph-sub">
+            {lessonsWithContent.length} lessons · {myBooks.length} books · {homeworks.length} assignments
+            {myGroup && (
+              <span style={{ marginLeft:8, padding:"2px 8px", borderRadius:99,
+                background:"var(--glow)", color:"var(--accent2)", fontSize:11, fontWeight:700 }}>
+                {myGroup.name}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Next lesson prominent banner */}
+      {/* ── Stats row ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:10, marginBottom:16 }}>
+        {[
+          { icon:"📖", label:"Lessons", value:lessonsWithContent.length, color:"#818cf8", bg:"rgba(99,102,241,.08)" },
+          { icon:"✅", label:"Completed", value:completedSessions.length, color:"var(--green)", bg:"rgba(34,197,94,.08)" },
+          { icon:"📝", label:"Homework", value:homeworks.length, color:"var(--amber)", bg:"rgba(245,158,11,.08)" },
+          { icon:"📚", label:"Books", value:myBooks.length, color:"var(--accent2)", bg:"rgba(249,115,22,.08)" },
+        ].map(item => (
+          <div key={item.label} style={{ padding:"12px 14px", borderRadius:12, background:item.bg,
+            border:`1px solid ${item.color}22`, display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ fontSize:20 }}>{item.icon}</div>
+            <div>
+              <div className="fw8" style={{ fontSize:18, color:item.color, lineHeight:1 }}>{item.value}</div>
+              <div className="text-xs muted">{item.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Next lesson banner ── */}
       {upcomingSessions.length > 0 && (() => {
-        const next = upcomingSessions[0];
+        const next   = upcomingSessions[0];
         const lesson = getLessonForSession(next);
         if (!lesson) return null;
-        const book = data.books.find(b => b.id === lesson.bookId);
-        const chapter = book?.chapters.find(c => c.id === lesson.chapterId);
+        const book    = data.books.find(b => b.id === lesson.bookId);
+        const chapter = book?.chapters?.find(ch => ch.id === lesson.chapterId);
+        const allFiles = [lesson.fileId, ...(lesson.extraFiles||[])].filter(Boolean);
         return (
-          <div className="next-lesson-card mb16">
-            <div className="next-lesson-label">📌 Next Lesson Preview — {next.date} at {next.time}</div>
-            <div className="fw8 mb4" style={{ fontSize: 16 }}>{lesson.title || next.title}</div>
-            {book && <div className="text-sm muted mb8">{book.title}{chapter ? ` · ${chapter.title}` : ""}</div>}
-            {lesson.description && <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 10 }}>{lesson.description}</div>}
-            <div className="flex ac gap8" style={{ flexWrap: "wrap" }}>
-              {lesson.fileId && getFile(lesson.fileId) && (
-                <div style={{ display:"flex", gap:6 }}>
-                  <button className="btn btn-se btn-sm" onClick={() => setPdfViewer(getFile(lesson.fileId))}>
-                    👁 Preview Lesson PDF
+          <div style={{
+            borderRadius:14, marginBottom:16, overflow:"hidden",
+            background:"linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%)",
+            border:"1px solid var(--accent)44", position:"relative",
+          }}>
+            {/* Glow accent line */}
+            <div style={{ height:3, background:"linear-gradient(90deg,var(--accent),var(--accent2))", width:"100%" }} />
+            <div style={{ padding:"16px 18px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                <span style={{ fontSize:11, fontWeight:800, color:"var(--accent2)",
+                  letterSpacing:".5px", textTransform:"uppercase" }}>📌 NEXT LESSON</span>
+                <span className="mono text-xs muted">{next.date} · {next.startTime||next.time}</span>
+              </div>
+              <div className="fw8" style={{ fontSize:18, marginBottom:4 }}>{lesson.title || next.title}</div>
+              {book && <div className="text-sm muted mb8">📚 {book.title}{chapter ? ` · ${chapter.title}` : ""}</div>}
+              {lesson.description && (
+                <div style={{ fontSize:13, color:"var(--text2)", marginBottom:12, lineHeight:1.65,
+                  padding:"10px 12px", borderRadius:8, background:"var(--bg3)", borderLeft:"3px solid var(--accent)44" }}>
+                  {lesson.description.length > 200
+                    ? lesson.description.slice(0,200) + "…"
+                    : lesson.description}
+                </div>
+              )}
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                {allFiles.length > 0 && (
+                  <button className="btn btn-se btn-sm" onClick={() => {
+                    setActiveTab("lessons"); setExpandedCard(next.id);
+                    setTimeout(() => document.getElementById(`lesson-${next.id}`)?.scrollIntoView({ behavior:"smooth", block:"center" }), 100);
+                  }}>📁 View {allFiles.length} Material{allFiles.length!==1?"s":""}</button>
+                )}
+                {lesson.fileId && getFile(lesson.fileId) && (
+                  <button className="btn btn-pr btn-sm"
+                    onClick={() => openFile(lesson.fileId, lesson.title)}>
+                    👁 Preview File
                   </button>
-                  <button className="btn btn-pr btn-sm" onClick={() => { const f=getFile(lesson.fileId); if(f) downloadFile(f.dataUrl,f.name); }}>📥 Download</button>
-                </div>
-              )}
-              {lesson.homework && (
-                <div style={{ fontSize: 12, color: "var(--amber)", fontWeight: 600 }}>
-                  📝 Homework due: {lesson.homeworkDue || "TBD"}
-                </div>
-              )}
+                )}
+                {lesson.homework && (
+                  <button className="btn btn-se btn-sm" style={{ color:"var(--amber)", borderColor:"rgba(245,158,11,.3)" }}
+                    onClick={() => { setActiveTab("homework"); }}>
+                    📝 View Homework
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );
       })()}
 
-      <div className="tabs">
-        <div className={`tab ${activeTab === "lessons" ? "active" : ""}`} onClick={() => setActiveTab("lessons")}>📖 Lessons ({lessonsWithContent.length})</div>
-        <div className={`tab ${activeTab === "homework" ? "active" : ""}`} onClick={() => setActiveTab("homework")}>📝 Homework ({homeworks.length})</div>
-        <div className={`tab ${activeTab === "books" ? "active" : ""}`} onClick={() => setActiveTab("books")}>📚 Books ({myBooks.length})</div>
+      {/* ── Tabs ── */}
+      <div className="tabs mb16">
+        {[
+          { key:"lessons",  icon:"📖", label:"Lessons",  count:lessonsWithContent.length },
+          { key:"homework", icon:"📝", label:"Homework", count:homeworks.length },
+          { key:"books",    icon:"📚", label:"Books",    count:myBooks.length },
+        ].map(t => (
+          <div key={t.key} className={`tab ${activeTab===t.key?"active":""}`}
+            onClick={() => setActiveTab(t.key)}>
+            {t.icon} {t.label}
+            <span style={{ fontSize:11, opacity:.7, marginLeft:4 }}>({t.count})</span>
+          </div>
+        ))}
       </div>
 
-      {/* LESSONS TAB */}
+      {/* ══════════ LESSONS TAB ══════════ */}
       {activeTab === "lessons" && (
         <div>
-          {lessonsWithContent.length === 0
-            ? <div className="empty" style={{ marginTop: 32 }}><div className="empty-icon">📖</div><div className="empty-title">No lesson content yet</div><div className="text-sm muted">Your teacher will upload materials here</div></div>
-            : lessonsWithContent.map(({ session: s, lesson }) => {
-              const book = data.books.find(b => b.id === lesson.bookId);
-              const chapter = book?.chapters.find(c => c.id === lesson.chapterId);
-              const isPast = s.status === "completed";
-              const isNext = s.id === upcomingSessions[0]?.id;
+          {/* Search */}
+          {lessonsWithContent.length > 3 && (
+            <div style={{ marginBottom:12 }}>
+              <input
+                value={lessonSearch} onChange={e => setLessonSearch(e.target.value)}
+                placeholder="🔍 Search lessons…"
+                style={{ width:"100%", padding:"9px 14px", borderRadius:10, fontSize:13,
+                  background:"var(--bg3)", border:"1px solid var(--border)", color:"var(--text)",
+                  outline:"none" }}
+              />
+            </div>
+          )}
 
-              return (
-                <div key={s.id} className="card mb8" style={{ borderLeft: `3px solid ${isNext ? "var(--accent)" : isPast ? "var(--green)" : "var(--border)"}` }}>
-                  <div className="flex ac gap12 mb10">
-                    <div style={{ width: 42, height: 42, borderRadius: 11, background: book ? `${book.coverColor}22` : "var(--glow)", color: book?.coverColor ?? "var(--accent2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>📖</div>
-                    <div style={{ flex: 1 }}>
-                      <div className="flex ac gap8">
-                        <div className="fw7" style={{ fontSize: 14 }}>{lesson.title || s.title}</div>
-                        {isNext && <span style={{ fontSize: 10, background: "var(--glow)", color: "var(--accent2)", border: "1px solid rgba(249,115,22,.2)", padding: "2px 7px", borderRadius: 99, fontWeight: 700 }}>NEXT</span>}
-                      </div>
-                      <div className="text-xs muted mt2">{s.date} · {s.time}{book ? ` · ${book.title}` : ""}{chapter ? ` · ${chapter.title}` : ""}</div>
-                    </div>
-                    <Badge status={isPast ? "paid" : "upcoming"} label={isPast ? "Completed" : "Upcoming"} />
-                  </div>
-
-                  {lesson.description && <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 10 }}>{lesson.description}</div>}
-
-                  {/* Files */}
-                  {(lesson.fileId || lesson.extraFiles?.length > 0) && (
-                    <div className="mb10">
-                      {lesson.fileId && (
-                        <FileRow fileId={lesson.fileId} label="Lesson PDF" onPreview={f => setPdfViewer(f)} canRemove={false} />
-                      )}
-                      {lesson.extraFiles?.map(fid => (
-                        <FileRow key={fid} fileId={fid} onPreview={f => setPdfViewer(f)} canRemove={false} />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Homework preview inline */}
-                  {lesson.homework && (
-                    <div style={{ borderRadius: 8, background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.15)", padding: "10px 12px" }}>
-                      <div className="flex ac jb">
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--amber)", textTransform: "uppercase", letterSpacing: ".5px" }}>📝 Homework</div>
-                        {lesson.homeworkDue && <div className="mono text-xs" style={{ color: "var(--amber)" }}>Due: {lesson.homeworkDue}</div>}
-                      </div>
-                      <div style={{ fontSize: 13, marginTop: 6 }}>{lesson.homework}</div>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          }
+          {filteredLessons.length === 0 ? (
+            <div className="empty" style={{ marginTop:32 }}>
+              <div className="empty-icon">📖</div>
+              <div className="empty-title">{lessonSearch ? "No lessons found" : "No lesson content yet"}</div>
+              <div className="text-sm muted">
+                {lessonSearch ? "Try a different search term" : "Your teacher will upload materials before each session"}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <span className="text-xs muted">
+                  {filteredLessons.length} lesson{filteredLessons.length!==1?"s":""}{lessonSearch?" found":""}
+                </span>
+                <span className="text-xs muted">Most recent first · click to expand</span>
+              </div>
+              {[...filteredLessons].reverse().map(({ session: s, lesson }, i) => (
+                <LessonCard key={s.id} session={s} lesson={lesson}
+                  index={filteredLessons.length - 1 - i} />
+              ))}
+            </>
+          )}
         </div>
       )}
 
-      {/* HOMEWORK TAB */}
+      {/* ══════════ HOMEWORK TAB ══════════ */}
       {activeTab === "homework" && (
         <div>
-          {homeworks.length === 0
-            ? <div className="empty" style={{ marginTop: 32 }}><div className="empty-icon">📝</div><div className="empty-title">No homework assigned</div></div>
-            : homeworks.map(({ session: s, lesson }) => {
-              const today = new Date().toISOString().split("T")[0];
-              const isOverdue = lesson.homeworkDue && lesson.homeworkDue < today && s.status === "completed";
-              const isDueSoon = lesson.homeworkDue && lesson.homeworkDue >= today && lesson.homeworkDue <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          {homeworks.length === 0 ? (
+            <div className="empty" style={{ marginTop:32 }}>
+              <div className="empty-icon">📝</div>
+              <div className="empty-title">No homework assigned yet</div>
+              <div className="text-sm muted">Assignments will appear here when your teacher adds them</div>
+            </div>
+          ) : (
+            <>
+              {/* Filter pills */}
+              <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+                {[
+                  { key:"all",     label:"All",       count:homeworks.length },
+                  { key:"pending", label:"Pending",   count:homeworks.filter(x => !hwUploads[x.lesson.id]?.status).length },
+                  { key:"done",    label:"Submitted", count:Object.values(hwUploads).filter(v=>v?.status==="done").length },
+                ].map(item => (
+                  <button key={item.key}
+                    onClick={() => setHwFilter(item.key)}
+                    className={`btn btn-xs ${hwFilter===item.key ? "btn-pr" : "btn-se"}`}
+                    style={{ gap:6 }}>
+                    {item.label} <span style={{ opacity:.7 }}>({item.count})</span>
+                  </button>
+                ))}
+              </div>
 
-              return (
-                <div key={s.id} className="card mb8" style={{ borderLeft: `3px solid ${isOverdue ? "var(--red)" : isDueSoon ? "var(--amber)" : "var(--border)"}` }}>
-                  <div className="flex ac jb mb8">
-                    <div className="fw7" style={{ fontSize: 14 }}>{lesson.title || s.title}</div>
-                    {lesson.homeworkDue && (
-                      <div className="flex ac gap6">
-                        {isOverdue && <Badge status="overdue" label="Overdue" />}
-                        {isDueSoon && !isOverdue && <Badge status="pending" label="Due Soon" />}
-                        <span className="mono text-xs" style={{ color: isOverdue ? "var(--red)" : "var(--amber)" }}>Due {lesson.homeworkDue}</span>
+              {homeworks
+                .filter(({ lesson }) => {
+                  if (hwFilter === "done")    return hwUploads[lesson.id]?.status === "done";
+                  if (hwFilter === "pending") return !hwUploads[lesson.id]?.status;
+                  return true;
+                })
+                .map(({ session: s, lesson }) => {
+                  const today     = new Date().toISOString().split("T")[0];
+                  const isOverdue = lesson.homeworkDue && lesson.homeworkDue < today && s.status === "completed";
+                  const isDueSoon = lesson.homeworkDue && lesson.homeworkDue >= today &&
+                    lesson.homeworkDue <= new Date(Date.now()+3*24*60*60*1000).toISOString().split("T")[0];
+                  const hwState   = hwUploads[lesson.id];
+
+                  return (
+                    <div key={s.id} style={{
+                      borderRadius:14, background:"var(--bg2)", marginBottom:12, overflow:"hidden",
+                      border:"1px solid var(--border)",
+                      borderLeft:`4px solid ${isOverdue?"var(--red)":isDueSoon?"var(--amber)":"var(--border)"}`,
+                    }}>
+                      <div style={{ padding:"16px 18px" }}>
+                        {/* Header */}
+                        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between",
+                          gap:12, marginBottom:12 }}>
+                          <div>
+                            <div className="fw7" style={{ fontSize:14.5, marginBottom:4 }}>
+                              {lesson.title || s.title}
+                            </div>
+                            <div className="text-xs muted">📅 {s.date} · {s.startTime||s.time}</div>
+                          </div>
+                          <div style={{ display:"flex", gap:6, flexShrink:0, flexWrap:"wrap" }}>
+                            {hwState?.status === "done" && <Badge status="paid" label="✅ Submitted" />}
+                            {isOverdue && !hwState?.status && <Badge status="overdue" label="Overdue" />}
+                            {isDueSoon && !isOverdue && !hwState?.status && <Badge status="pending" label="Due Soon" />}
+                            {lesson.homeworkDue && (
+                              <span className="mono text-xs" style={{
+                                color: isOverdue?"var(--red)":"var(--amber)",
+                                padding:"4px 8px",
+                                background: isOverdue?"rgba(239,68,68,.08)":"rgba(245,158,11,.08)",
+                                borderRadius:6, fontWeight:700,
+                              }}>Due {lesson.homeworkDue}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Instructions */}
+                        <div style={{ fontSize:13.5, color:"var(--text2)", lineHeight:1.7, marginBottom:14,
+                          padding:"12px 14px", borderRadius:10,
+                          background:"rgba(245,158,11,.06)", border:"1px solid rgba(245,158,11,.12)" }}>
+                          {lesson.homework}
+                        </div>
+
+                        <HwUploadBox lessonId={lesson.id} />
                       </div>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 8 }}>{lesson.homework}</div>
-                  <div className="text-xs muted">Session: {s.date} · {s.time}</div>
-                </div>
-              );
-            })
-          }
+                    </div>
+                  );
+                })
+              }
+            </>
+          )}
         </div>
       )}
 
-      {/* BOOKS TAB */}
+      {/* ══════════ BOOKS TAB ══════════ */}
       {activeTab === "books" && (
         <div>
-          {myBooks.length === 0
-            ? <div className="empty" style={{ marginTop: 32 }}><div className="empty-icon">📚</div><div className="empty-title">No books assigned to your group</div></div>
-            : myBooks.map(book => {
-              // Track which chapters have lessons
-              const coveredChapters = new Set(
-                data.lessons
-                  .filter(l => l.bookId === book.id)
-                  .map(l => l.chapterId)
-              );
+          {myBooks.length === 0 ? (
+            <div className="empty" style={{ marginTop:32 }}>
+              <div className="empty-icon">📚</div>
+              <div className="empty-title">No books assigned yet</div>
+              <div className="text-sm muted">Books assigned to your group will appear here</div>
+            </div>
+          ) : myBooks.map(book => {
+            const coveredChapters = new Set(
+              data.lessons.filter(l => l.bookId === book.id).map(l => l.chapterId)
+            );
+            const progress = book.chapters?.length
+              ? Math.round(coveredChapters.size / book.chapters.length * 100) : 0;
 
-              return (
-                <div key={book.id} className="card mb12">
-                  <div className="flex ac gap14 mb14">
-                    <div style={{ width: 64, height: 80, borderRadius: 12, background: `linear-gradient(135deg,${book.coverColor},${book.coverColor}88)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>📖</div>
-                    <div style={{ flex: 1 }}>
-                      <div className="fw8" style={{ fontSize: 16 }}>{book.title}</div>
-                      <div className="text-xs muted mt4">{book.author}</div>
-                      <div className="flex gap8 mt8 ac">
-                        <Badge status="active" label={book.level} />
-                        <span className="text-xs muted">{book.chapters.length} chapters</span>
-                        <span className="text-xs muted">{coveredChapters.size} covered</span>
+            return (
+              <div key={book.id} style={{ borderRadius:14, background:"var(--bg2)",
+                border:"1px solid var(--border)", marginBottom:14, overflow:"hidden" }}>
+
+                {/* Book header */}
+                <div style={{ padding:"16px 18px", display:"flex", gap:14,
+                  alignItems:"flex-start", borderBottom:"1px solid var(--border)" }}>
+                  <div style={{ width:62, height:78, borderRadius:10, flexShrink:0,
+                    background:`linear-gradient(135deg,${book.coverColor||"var(--accent)"},${(book.coverColor||"#f97316")}88)`,
+                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:28,
+                    boxShadow:`0 4px 16px ${book.coverColor||"#f97316"}44` }}>📖</div>
+                  <div style={{ flex:1 }}>
+                    <div className="fw8" style={{ fontSize:16, marginBottom:4 }}>{book.title}</div>
+                    {book.author && <div className="text-xs muted mb8">by {book.author}</div>}
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", marginBottom:12 }}>
+                      <Badge status="active" label={book.level || "B1"} />
+                      <span className="text-xs muted">
+                        {book.chapters?.length||0} chapters · {coveredChapters.size} covered
+                      </span>
+                    </div>
+                    {/* Progress bar */}
+                    <div>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                        <span className="text-xs muted">Your progress</span>
+                        <span className="text-xs mono" style={{ color:"var(--accent2)", fontWeight:700 }}>{progress}%</span>
+                      </div>
+                      <div style={{ height:7, background:"var(--bg4)", borderRadius:99, overflow:"hidden" }}>
+                        <div style={{ height:"100%", width:`${progress}%`,
+                          background:"linear-gradient(90deg,var(--accent),var(--accent2))",
+                          borderRadius:99, transition:"width .6s" }} />
                       </div>
                     </div>
-                    {book.fileId && getFile(book.fileId) && (
-                      <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                        <button className="btn btn-se btn-sm" onClick={() => setPdfViewer(getFile(book.fileId))}>👁 Preview</button>
-                        <a href={getFile(book.fileId).dataUrl} download={getFile(book.fileId).name}>
-                          <button className="btn btn-pr btn-sm">📥 Download</button>
-                        </a>
-                      </div>
-                    )}
                   </div>
-
-                  {/* Chapter progress */}
-                  <div className="mb8">
-                    <div className="flex ac jb mb6">
-                      <div className="text-xs muted">Chapter Progress</div>
-                      <div className="text-xs muted">{coveredChapters.size}/{book.chapters.length}</div>
+                  {/* Book actions */}
+                  {book.fileId && getFile(book.fileId) && (
+                    <div style={{ display:"flex", flexDirection:"column", gap:6, flexShrink:0 }}>
+                      <button className="btn btn-se btn-sm"
+                        onClick={() => openFile(book.fileId, book.title)}>
+                        👁 Preview
+                      </button>
+                      <button className="btn btn-pr btn-sm"
+                        onClick={() => { const f=getFile(book.fileId); if(f) downloadFile(f.dataUrl,f.name||book.title); }}>
+                        📥 Download
+                      </button>
                     </div>
-                    <div className="prog">
-                      <div className="prog-fill" style={{ width: `${book.chapters.length ? (coveredChapters.size / book.chapters.length) * 100 : 0}%`, background: "var(--accent)" }} />
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                    {book.chapters.map(ch => (
-                      <div key={ch.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 8, background: coveredChapters.has(ch.id) ? "rgba(34,197,94,.06)" : "var(--bg3)", border: `1px solid ${coveredChapters.has(ch.id) ? "rgba(34,197,94,.2)" : "var(--border)"}` }}>
-                        <span style={{ fontSize: 12 }}>{coveredChapters.has(ch.id) ? "✅" : "⭕"}</span>
-                        <span style={{ fontSize: 12, fontWeight: coveredChapters.has(ch.id) ? 600 : 400 }}>{ch.title}</span>
-                      </div>
-                    ))}
-                  </div>
+                  )}
                 </div>
-              );
-            })
-          }
+
+                {/* Chapters */}
+                {book.chapters?.length > 0 && (
+                  <div style={{ padding:"12px 18px" }}>
+                    <div className="text-xs muted" style={{ marginBottom:8, fontWeight:700, letterSpacing:".5px" }}>
+                      CHAPTERS
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:6 }}>
+                      {book.chapters.map(ch => {
+                        const done = coveredChapters.has(ch.id);
+                        return (
+                          <div key={ch.id} style={{
+                            display:"flex", alignItems:"center", gap:8, padding:"8px 10px",
+                            borderRadius:8, fontSize:12, fontWeight: done ? 600 : 400,
+                            background: done ? "rgba(34,197,94,.07)" : "var(--bg3)",
+                            border:`1px solid ${done ? "rgba(34,197,94,.2)" : "var(--border)"}`,
+                            color: done ? "var(--green)" : "var(--text2)",
+                          }}>
+                            <span style={{ fontSize:14 }}>{done ? "✅" : "⭕"}</span>
+                            <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                              {ch.title}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

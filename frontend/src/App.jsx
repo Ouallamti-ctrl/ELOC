@@ -217,11 +217,11 @@ html{scroll-behavior:smooth}body{font-family:var(--font);background:var(--bg);co
 .sidebar::-webkit-scrollbar{width:3px}
 .sidebar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
 .sidebar::-webkit-scrollbar-track{background:transparent}
-.sidebar-logo{padding:18px 16px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-.logo-box{width:32px;height:32px;background:var(--accent);border-radius:9px;
-  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;
-  color:#fff;letter-spacing:-1px;box-shadow:0 0 24px var(--glow);flex-shrink:0}
-.logo-name{font-size:14px;font-weight:700;letter-spacing:-.3px}
+.sidebar-logo{padding:12px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px}
+.logo-box{width:30px;height:30px;background:var(--accent);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;
+  color:#fff;letter-spacing:-1px;box-shadow:0 0 20px var(--glow);flex-shrink:0;overflow:hidden}
+.logo-name{font-size:13px;font-weight:700;letter-spacing:-.3px}
 .logo-ver{font-size:10px;color:var(--text3);margin-top:1px}
 .nav-section{padding:10px 10px 2px}
 .nav-section-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;
@@ -773,86 +773,63 @@ tr:hover td{background:rgba(255,255,255,.018)}
    TABLET  ≤ 1024px
 ══════════════════════════════════════════════════ */
 @media(max-width:1024px){
-  /* Sidebar becomes a drawer */
   .sidebar{transform:translateX(-100%);position:fixed;z-index:200}
   .sidebar.open{transform:translateX(0);box-shadow:12px 0 48px rgba(0,0,0,.7)}
-  .main{margin-left:0}
+  .main{margin-left:0!important}
   .hamburger{display:flex}
-
-  /* Grids */
   .g4{grid-template-columns:repeat(2,1fr)}
-
-  /* Content & modals */
+  .g3{grid-template-columns:repeat(2,1fr)}
   .content{padding:18px 16px}
   .modal{margin:16px;max-width:calc(100vw - 32px)}
-
-  /* Calendar */
-  .week-scroll{max-height:calc(100vh - 210px)}
-
-  /* Hide date chip to save topbar space */
+  .topbar{padding:0 14px}
   .topbar-date{display:none}
+  .week-scroll{max-height:calc(100vh - 210px)}
+  .ph{flex-wrap:wrap;gap:10px}
+  .ph-right{flex-wrap:wrap}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 }
 
 /* ══════════════════════════════════════════════════
    MOBILE  ≤ 640px
 ══════════════════════════════════════════════════ */
 @media(max-width:640px){
-  /* Grids collapse to 1 col */
   .g2,.g3,.g4{grid-template-columns:1fr}
   .input-row{grid-template-columns:1fr}
-
-  /* Spacing */
   .content{padding:12px 10px}
   .card{padding:14px 12px}
   .card-sm{padding:10px}
   .mb16{margin-bottom:12px}
-
-  /* Page header */
   .ph{flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:16px}
-  .ph-right{width:100%;justify-content:flex-end;flex-wrap:wrap}
+  .ph-right{width:100%;justify-content:flex-start;flex-wrap:wrap;gap:6px}
   .ph-title{font-size:18px}
   .ph-sub{font-size:12px}
-
-  /* Topbar */
   .topbar{padding:0 10px;height:50px}
-  .topbar-title{font-size:13px;max-width:150px;overflow:hidden;
-    text-overflow:ellipsis;white-space:nowrap}
+  .topbar-title{font-size:13px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar-right{gap:5px}
   .topbar-chip{padding:4px 8px;font-size:11px;gap:4px}
-
-  /* Modals → bottom sheet */
   .overlay{align-items:flex-end}
   .modal{margin:0;border-radius:20px 20px 0 0;position:fixed;
     bottom:0;left:0;right:0;max-width:100vw;
     max-height:88vh;border-bottom:none;
     box-shadow:0 -8px 40px rgba(0,0,0,.5)}
-
-  /* Typography */
+  .modal-lg,.modal-xl{max-width:100vw}
   .stat-val{font-size:22px}
   .sh-title{font-size:13px}
   .btn{font-size:12px;padding:7px 12px}
   .btn-sm{padding:4px 9px;font-size:11px}
   .btn-xs{padding:3px 7px;font-size:10px}
-
-  /* Tabs → horizontal scroll */
-  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;
-    flex-wrap:nowrap;scrollbar-width:none}
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;scrollbar-width:none}
   .tabs::-webkit-scrollbar{display:none}
   .tab{white-space:nowrap;flex:none;padding:7px 12px;font-size:12px}
-
-  /* Tables → horizontal scroll */
-  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;
-    border-radius:var(--r2)}
-  table{min-width:500px}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r2)}
+  table{min-width:480px}
   .hide-mobile{display:none!important}
-
-  /* Calendar — month view */
+  .sh{flex-wrap:wrap;gap:6px}
   .cal-grid{gap:0}
   .cal-day{min-height:48px;padding:3px}
   .cal-evt{font-size:9px;padding:1px 4px}
   .cal-more{font-size:9px}
   .cal-day-num{font-size:11px;width:20px;height:20px}
-
-  /* Calendar — week view */
   .week-grid{grid-template-columns:34px repeat(7,1fr)}
   .week-hdr-row{grid-template-columns:34px repeat(7,1fr)}
   .week-hdr-dayname{font-size:9px}
@@ -862,28 +839,22 @@ tr:hover td{background:rgba(255,255,255,.018)}
   .week-scroll{max-height:calc(100vh - 150px);min-height:300px}
   .week-evt-title{font-size:9px}
   .week-evt-time{display:none}
-
-  /* Agenda */
   .agenda-evt{padding:8px 10px;gap:8px}
   .agenda-evt-time{min-width:54px;font-size:10px}
   .agenda-evt-title{font-size:12px}
   .agenda-evt-meta{font-size:10px}
-
-  /* Toast */
   .toast-wrap{left:8px;right:8px;bottom:10px}
   .toast{max-width:100%;font-size:12px}
-
-  /* Section header */
-  .sh{flex-wrap:wrap;gap:6px}
-
-  /* Books grid → 2 cols */
   .book-cover{height:90px}
   .book-title{font-size:13px}
-
-  /* Stat card */
   .stat{padding:14px 12px}
   .stat-icon{font-size:18px;margin-bottom:7px}
   .stat-label{font-size:11px}
+  .user-name{font-size:12px}
+  .user-role{font-size:10px}
+  .contact-section{padding:8px}
+  .contact-btn{font-size:10px;padding:6px 8px}
+  .card,.modal,.content,main{max-width:100vw;box-sizing:border-box}
 }
 
 /* ══════════════════════════════════════════════════
@@ -893,16 +864,20 @@ tr:hover td{background:rgba(255,255,255,.018)}
   .content{padding:8px}
   .card{padding:12px 10px}
   .topbar{padding:0 8px;height:48px}
-  .topbar-title{font-size:12px}
+  .topbar-title{font-size:12px;max-width:100px}
   .ph-title{font-size:16px}
   .stat-val{font-size:20px}
   .hamburger{width:34px;height:34px;font-size:15px}
   .modal{max-height:92vh}
   .btn{font-size:11px;padding:6px 10px}
   .g4{grid-template-columns:1fr 1fr}
+  .g2{grid-template-columns:1fr}
   .cal-day{min-height:38px}
   .lp-stats{gap:12px}
   .lp-stat-val{font-size:20px}
+  .topbar-chip span:last-child{display:none}
+  .tabs .tab{padding:6px 10px;font-size:11px}
+  .btn-xs{font-size:10px;padding:2px 6px}
 }
 
 /* ── AUTH PAGES ── */
@@ -3503,7 +3478,7 @@ function SessionsPage({ data, setData, userRole, userId }) {
 
   const markAttendance = async (sess, studentId, present) => {
     // Update attendance for this student only — do NOT auto-complete the session
-    // so other students remain selectable
+    // so that all other students remain selectable
     setData(d => ({ ...d, sessions: d.sessions.map(s =>
       s.id === sess.id
         ? { ...s, attendance: { ...s.attendance, [studentId]: present } }
@@ -4809,7 +4784,7 @@ function Sidebar({ user, active, onNav, open }) {
   return (
     <aside className={`sidebar ${open ? "open" : ""}`}>
       <div className="sidebar-logo">
-        <img src="data:image/png;base64,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" alt="ELOC" style={{width:"100%",height:"100%",objectFit:"contain"}} />
+        <img src="data:image/png;base64,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" alt="ELOC" style={{width:30,height:30,objectFit:"contain",flexShrink:0,borderRadius:8}} />
         <div><div className="logo-name">ELOC</div><div className="logo-ver">Manager v2.1</div></div>
       </div>
       {nav.map(sec => (
@@ -4854,14 +4829,29 @@ function AdminDashboard({ data, user }) {
   const completedSessions = data.sessions.filter(s => s.status === "completed").length;
   const totalSessions = data.sessions.length;
 
-  // Build last 6 months of real revenue data
+  // Derive each student's real payment status from actual payment records
+  const getStudentPayStatus = (studentId) => {
+    const pays = data.payments.filter(p => String(p.studentId) === String(studentId));
+    if (pays.length === 0) return "pending";
+    if (pays.some(p => p.status === "overdue")) return "overdue";
+    if (pays.some(p => p.status === "pending")) return "pending";
+    return "paid";
+  };
+
+  // Build last 6 months of real revenue data - match by date OR month label
   const monthlyRev = (() => {
     const months = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(); d.setMonth(d.getMonth() - i);
-      const ym = d.toISOString().slice(0, 7); // YYYY-MM
+      const ym = d.toISOString().slice(0, 7);
+      const monthLabel = d.toLocaleString("default", { month: "long", year: "numeric" });
       const v = data.payments
-        .filter(p => p.status === "paid" && (p.date || p.createdAt || "").slice(0, 7) === ym)
+        .filter(p => {
+          if (p.status !== "paid") return false;
+          if (p.date && p.date.slice(0, 7) === ym) return true;
+          if (p.month && p.month.toLowerCase() === monthLabel.toLowerCase()) return true;
+          return false;
+        })
         .reduce((s, p) => s + (p.amount || 0), 0);
       months.push({ l: d.toLocaleString("default", { month: "short" }), v });
     }
@@ -4938,7 +4928,7 @@ function AdminDashboard({ data, user }) {
                 <div className="fw7 text-sm">{s.name}</div>
                 <div className="text-xs muted">{s.level} · {s.city}</div>
               </div>
-              <Badge status={s.paymentStatus} />
+              <Badge status={getStudentPayStatus(s.id)} />
             </div>
           ))}
         </div>
@@ -6335,18 +6325,14 @@ function PaymentsPage({ data, setData, userRole, userId }) {
       const rangeLabel = new Date(yr, mo - 1, 1).toLocaleString("default", { month: "long", year: "numeric" });
       return monthLabel.toLowerCase() === rangeLabel.toLowerCase();
     }
-    if (period === "yearly") {
-      return monthLabel.includes(selYear);
-    }
+    if (period === "yearly") return monthLabel.includes(selYear);
     return false;
   };
 
   const filteredStudentPay = allStudentPay.filter(p => {
-    // period: use paid date if paid, else dueDate — AND also match by month label string
     const dateToCheck = p.date || p.dueDate;
     const passesDateFilter = inPeriod(dateToCheck);
     const passesMonthLabel = monthLabelInPeriod(p.month);
-    // A payment passes if either its date falls in range OR its month label matches the selected period
     if (!passesDateFilter && !passesMonthLabel) return false;
     if (statusF!=="all" && p.status!==statusF) return false;
     if (search) {
@@ -6969,7 +6955,9 @@ function TeacherDashboard({ user, data }) {
   const revenue = myStudents.reduce((sum, s) => sum + data.payments.filter(p => String(p.studentId) === String(s.id) && p.status === "paid").reduce((a, p) => a + p.amount, 0), 0);
   const earned = (user.commission / 100) * revenue;
   const paid = data.teacherPayments.filter(tp => String(tp.teacherId) === String(user.id) && tp.status === "paid").reduce((s, p) => s + p.amount, 0);
-  const upcomingToday = mySessions.filter(s => s.status === "upcoming").slice(0, 5);
+  const upcomingToday = [...mySessions.filter(s => s.status === "upcoming" && !s.isCancelled)]
+    .sort((a, b) => (`${a.date}T${a.startTime||a.time||"00:00"}`).localeCompare(`${b.date}T${b.startTime||b.time||"00:00"}`))
+    .slice(0, 5);
 
   return (
     <div>
@@ -7007,7 +6995,7 @@ function TeacherDashboard({ user, data }) {
                 <div style={{ flex: 1 }}><div className="fw7 text-sm">{s.title}</div><div className="text-xs muted">{g?.name}{s.sessionMode === "online" ? " · Online" : ""}</div></div>
                 {s.sessionMode === "online" && effectiveLink
                   ? <button className="btn btn-sm" style={{ background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", border: "none", fontSize: 11, flexShrink: 0 }} onClick={() => window.open(effectiveLink, "_blank")}>🎥 Join</button>
-                  : <div className="tac" style={{ flexShrink: 0 }}><div className="sess-time">{s.date}</div><div className="sess-time">{s.time}</div></div>
+                  : <div className="tac" style={{ flexShrink: 0 }}><div className="sess-time" style={{fontSize:11,color:"var(--text2)"}}>{s.date}</div><div className="sess-time" style={{fontSize:11,color:"var(--accent2)",fontWeight:700}}>{s.startTime||s.time||""}</div></div>
                 }
               </div>;
             })}
@@ -7103,8 +7091,9 @@ function StudentDashboard({ user, data }) {
   const myTeacher = myGroup ? data.users.find(u => String(u.id) === String(myGroup.teacherId)) : null;
   const mySessions = data.sessions.filter(s => String(s.groupId) === String(user.groupId) && !s.isCancelled);
   const completed = mySessions.filter(s => s.status === "completed");
-  const upcoming = mySessions.filter(s => s.status === "upcoming");
-  const attended = completed.filter(s => (s.attendance ?? {})[user.id] === true).length;
+  const upcoming = [...mySessions.filter(s => s.status === "upcoming")]
+    .sort((a, b) => (`${a.date}T${a.startTime||a.time||"00:00"}`).localeCompare(`${b.date}T${b.startTime||b.time||"00:00"}`));
+  const attended = completed.filter(s => (s.attendance ?? {})[String(user.id)] === true || (s.attendance ?? {})[user.id] === true).length;
   const attRate = completed.length > 0 ? Math.round((attended / completed.length) * 100) : 0;
   const myPayments = data.payments.filter(p => String(p.studentId) === String(user.id));
 
@@ -7242,6 +7231,18 @@ function Analytics({ data, teacherFilter = null }) {
     return true;
   };
 
+  // Also match by month label string when p.date is absent
+  const paymentInPeriod = p => {
+    if (inPeriod(p.date)) return true;
+    if (period === "monthly") {
+      const [yr, mo] = selMonth.split("-").map(Number);
+      const label = new Date(yr, mo - 1, 1).toLocaleString("default", { month: "long", year: "numeric" });
+      return p.month && p.month.toLowerCase() === label.toLowerCase();
+    }
+    if (period === "yearly") return p.month && p.month.includes(selYear);
+    return period === "all";
+  };
+
   const periodLabel = period === "monthly"
     ? new Date(selMonth + "-01").toLocaleString("default", { month:"long", year:"numeric" })
     : period === "yearly" ? selYear : "All Time";
@@ -7254,7 +7255,7 @@ function Analytics({ data, teacherFilter = null }) {
 
   // ── finance ─────────────────────────────────────────────────────────────────
   const allPaid       = data.payments.filter(p => p.status === "paid");
-  const periodPaid    = allPaid.filter(p => inPeriod(p.date));
+  const periodPaid    = allPaid.filter(p => paymentInPeriod(p));
   const periodRevenue = periodPaid.reduce((s,p) => s+p.amount, 0);
   const totalRevenue  = allPaid.reduce((s,p) => s+p.amount, 0);
   const pendingRev    = data.payments.filter(p=>p.status==="pending").reduce((s,p)=>s+p.amount,0);
@@ -7262,11 +7263,17 @@ function Analytics({ data, teacherFilter = null }) {
   const periodPayroll = data.teacherPayments.filter(p=>p.status==="paid"&&inPeriod(p.date)).reduce((s,p)=>s+p.amount,0);
   const netProfit     = periodRevenue - periodPayroll;
 
-  // monthly P&L last 7 months
+  // monthly P&L last 7 months - match by date OR month label
   const last7 = Array.from({length:7},(_,i)=>{
     const _now = new Date(); const d = new Date(_now.getFullYear(), _now.getMonth()-i, 1);
     const key = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
-    const rev = data.payments.filter(p=>p.status==="paid"&&p.date?.startsWith(key)).reduce((s,p)=>s+p.amount,0);
+    const mLabel = d.toLocaleString("default",{month:"long",year:"numeric"});
+    const rev = data.payments.filter(p=>{
+      if(p.status!=="paid") return false;
+      if(p.date?.startsWith(key)) return true;
+      if(p.month&&p.month.toLowerCase()===mLabel.toLowerCase()) return true;
+      return false;
+    }).reduce((s,p)=>s+p.amount,0);
     const pay = data.teacherPayments.filter(p=>p.status==="paid"&&p.date?.startsWith(key)).reduce((s,p)=>s+p.amount,0);
     return { label:d.toLocaleString("default",{month:"short"}), rev, pay, profit:rev-pay };
   }).reverse();

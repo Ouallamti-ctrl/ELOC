@@ -134,7 +134,10 @@ sessionRouter.post('/', teacherOrAdmin, async (req, res) => {
     if (!plain.sessionMode && plain.mode) plain.sessionMode = plain.mode;
     if (!plain.mode && plain.sessionMode) plain.mode = plain.sessionMode;
     res.status(201).json(plain);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) {
+    console.error('Session create error:', err.message);
+    res.status(500).json({ message: err.message || 'Failed to create session' });
+  }
 });
 
 sessionRouter.put('/:id', teacherOrAdmin, async (req, res) => {

@@ -1,4 +1,5 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import { protect, adminOnly, teacherOrAdmin } from '../middleware/auth.js';
 
@@ -66,6 +67,14 @@ router.put('/:id', async (req, res) => {
     if (req.user.role === 'student' && req.user._id.toString() !== req.params.id)
       return res.status(403).json({ message: 'Forbidden' });
 
+    // Only admins can change passwords for other users
+    const isPasswordChange = !!req.body.password;
+    if (isPasswordChange && req.user.role !== 'admin' && req.user._id.toString() !== req.params.id)
+      return res.status(403).json({ message: 'Only admins can change another user\'s password' });
+
+    if (isPasswordChange && req.body.password.length < 6)
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+
     // Whitelist fields to prevent mass assignment / role escalation
     const { name, email, phone, age, city, level, groupId,
             commission, salaryType, status, avatar,
@@ -80,6 +89,23 @@ router.put('/:id', async (req, res) => {
     // Remove undefined fields
     Object.keys(allowed).forEach(k => allowed[k] === undefined && delete allowed[k]);
 
+    // Password change: must use .save() so the pre('save') bcrypt hook fires
+    if (isPasswordChange) {
+      const user = await User.findById(req.params.id);
+      if (!user) return res.status(404).json({ message: 'User not found' });
+      // Apply all other field updates
+      Object.assign(user, allowed);
+      // Set new password — pre('save') will hash it
+      user.password = req.body.password;
+      await user.save();
+      const plain = user.toObject();
+      plain.id = plain._id.toString();
+      plain._id = plain.id;
+      delete plain.password;
+      return res.json({ ...plain, _passwordChanged: true });
+    }
+
+    // No password change — use fast findByIdAndUpdate
     const user = await User.findByIdAndUpdate(req.params.id, allowed, { new: true }).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     const plain = user.toObject();

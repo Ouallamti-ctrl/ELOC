@@ -143,7 +143,66 @@ function buildInitialSessions() {
 // ─── UTILS ─────────────────────────────────────────────────────────────────────
 const fmt$ = (n) => `${(n ?? 0).toLocaleString()} MAD`;
 const getInitials = (name) => name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() ?? "??";
-const statusColor = { paid: "#22c55e", pending: "#f59e0b", overdue: "#ef4444", upcoming: "#f97316", completed: "#22c55e", cancelled: "#6b7280", active: "#22c55e", unpaid: "#ef4444", paused: "#f59e0b" };
+const statusColor = { paid: "#22c55e", pending: "#f59e0b", overdue: "#ef4444", upcoming: "#f97316", completed: "#22c55e", cancelled: "#6b7280", active: "#22c55e", unpaid: "#ef4444", paused: "#f59e0b", on_hold: "#8b5cf6" };
+
+// Derive a student's payment status dynamically from their actual payment records.
+// on_hold/cancelled are set on the user object directly by admin — take priority.
+// Otherwise: overdue > pending > paid.
+function derivePayStatus(payments, studentId, users) {
+  // Check if admin has manually set on_hold or cancelled on the student
+  if (users) {
+    const st = users.find(u => String(u.id) === String(studentId));
+    if (st?.paymentStatus === "on_hold") return "on_hold";
+    if (st?.paymentStatus === "cancelled") return "cancelled";
+  }
+  const pays = payments.filter(p => String(p.studentId) === String(studentId));
+  if (pays.length === 0) return "pending";
+  if (pays.some(p => p.status === "overdue")) return "overdue";
+  if (pays.some(p => p.status === "pending")) return "pending";
+  return "paid";
+}
+
+// Auto-overdue: given all students, payments, and today's date,
+// return list of new overdue payment objects to create for students who missed their monthly payment.
+// Skips students who are on_hold or cancelled.
+function computeOverduePayments(students, payments) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const toCreate = [];
+  for (const st of students) {
+    if (st.role !== "student") continue;
+    if (st.paymentStatus === "on_hold" || st.paymentStatus === "cancelled") continue;
+    // Find most recent paid payment
+    const paid = payments
+      .filter(p => String(p.studentId) === String(st.id) && p.status === "paid" && p.date)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    if (paid.length === 0) continue;
+    const lastPaid = paid[0];
+    const lastDate = new Date(lastPaid.date);
+    // Next due = exactly 1 month after last paid date
+    const nextDue = new Date(lastDate);
+    nextDue.setMonth(nextDue.getMonth() + 1);
+    nextDue.setHours(0,0,0,0);
+    if (nextDue > today) continue; // not yet due
+    // Check if an overdue or paid record already exists for that month
+    const nextMonthKey = nextDue.getFullYear() + "-" + String(nextDue.getMonth() + 1).padStart(2, "0");
+    const alreadyExists = payments.some(p =>
+      String(p.studentId) === String(st.id) &&
+      (p.status === "overdue" || p.status === "paid") &&
+      p.dueDate && p.dueDate.startsWith(nextMonthKey)
+    );
+    if (alreadyExists) continue;
+    toCreate.push({
+      studentId: String(st.id),
+      amount: lastPaid.amount,
+      month: nextDue.toLocaleString("default", { month: "long", year: "numeric" }),
+      status: "overdue",
+      dueDate: nextDue.toISOString().split("T")[0],
+      date: null,
+    });
+  }
+  return toCreate;
+}
+
 const avatarPalette = ["#f97316","#8b5cf6","#ec4899","#f59e0b","#22c55e","#3b82f6","#ef4444","#06b6d4"];
 const getAvatarColor = (s) => avatarPalette[(s?.charCodeAt(0) ?? 0) % avatarPalette.length];
 
@@ -991,7 +1050,11 @@ function Av({ name, sz = "av-md", color }) {
 
 function Badge({ status, label }) {
   const c = statusColor[status] ?? "#6b7280";
-  return <span className="badge" style={{ background: `${c}18`, color: c }}><span className="bdot" style={{ background: c }} />{label ?? status}</span>;
+  const LABELS = { paid:"Paid", pending:"Pending", overdue:"Overdue", on_hold:"On Hold",
+    cancelled:"Cancelled", active:"Active", inactive:"Inactive", upcoming:"Upcoming",
+    completed:"Completed", paused:"Paused", unpaid:"Unpaid" };
+  const text = label ?? LABELS[status] ?? status;
+  return <span className="badge" style={{ background: `${c}18`, color: c }}><span className="bdot" style={{ background: c }} />{text}</span>;
 }
 
 function Modal({ open, onClose, title, children, lg, xl }) {
@@ -4997,7 +5060,7 @@ function StudentProfileModal({ student, data, setData, onClose, onResetPassword 
     city: freshStudent.city || "",
     level: freshStudent.level || "A1",
     groupId: freshStudent.groupId || "",
-    paymentStatus: freshStudent.paymentStatus || "pending",
+    paymentStatus: derivePayStatus(data.payments, freshStudent.id, data.users),  // derive real status
     registrationDate: freshStudent.registrationDate || "",
   });
 
@@ -5020,7 +5083,7 @@ function StudentProfileModal({ student, data, setData, onClose, onResetPassword 
           <div className="fw8" style={{ fontSize: 19 }}>{freshStudent.name}</div>
           <div className="text-sm muted mt4">{freshStudent.email}{freshStudent.phone ? ` · ${freshStudent.phone}` : ""}</div>
           <div className="mt8 flex gap8 ac" style={{ flexWrap: "wrap" }}>
-            <Badge status={freshStudent.paymentStatus} />
+            <Badge status={derivePayStatus(data.payments, freshStudent.id, data.users)} />
             <span className="mono fw7 text-xs" style={{ color: "var(--accent2)", background: "var(--glow)", padding: "3px 8px", borderRadius: 99 }}>{freshStudent.level}</span>
           </div>
         </div>
@@ -5052,8 +5115,12 @@ function StudentProfileModal({ student, data, setData, onClose, onResetPassword 
             </div>
             <div className="fg"><label>Payment Status</label>
               <select value={editForm.paymentStatus} onChange={e => setEditForm(p => ({ ...p, paymentStatus: e.target.value }))}>
-                {["paid","pending","overdue","unpaid"].map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+                  <option value="pending">Pending (Trial)</option>
+                  <option value="paid">Paid</option>
+                  <option value="overdue">Overdue</option>
+                  <option value="on_hold">On Hold</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
             </div>
             <div className="fg"><label>Registration Date</label><input type="date" value={editForm.registrationDate} onChange={e => setEditForm(p => ({ ...p, registrationDate: e.target.value }))} /></div>
           </div>
@@ -5070,7 +5137,7 @@ function StudentProfileModal({ student, data, setData, onClose, onResetPassword 
             { l: "Group", v: data.groups.find(g => g.id === freshStudent.groupId)?.name || "—" },
             { l: "Age", v: freshStudent.age || "—" },
             { l: "Registered", v: freshStudent.registrationDate },
-            { l: "Payment", v: freshStudent.paymentStatus },
+            { l: "Payment", v: derivePayStatus(data.payments, freshStudent.id, data.users) },
           ].map((x, i) => (
             <div key={i} className="card card-sm"><div className="text-xs muted">{x.l}</div><div className="fw7 mt4 text-sm">{x.v}</div></div>
           ))}
@@ -5193,7 +5260,7 @@ function StudentsPage({ data, setData }) {
 
   const students = allStudents
     .filter(s => lvlFilter  === "all" || s.level         === lvlFilter)
-    .filter(s => payFilter  === "all" || s.paymentStatus === payFilter)
+    .filter(s => payFilter  === "all" || derivePayStatus(data.payments, s.id, data.users) === payFilter)
     .filter(s => groupFilter === "all"|| String(s.groupId) === groupFilter)
     .filter(s => {
       if (!dateFrom && !dateTo) return true;
@@ -5217,7 +5284,7 @@ function StudentsPage({ data, setData }) {
       else if (sortBy === "level")   { va = a.level;             vb = b.level; }
       else if (sortBy === "payment") {
         const order = { paid: 0, pending: 1, overdue: 2 };
-        va = order[a.paymentStatus] ?? 3; vb = order[b.paymentStatus] ?? 3;
+        va = order[derivePayStatus(data.payments, a.id, data.users)] ?? 3; vb = order[derivePayStatus(data.payments, b.id, data.users)] ?? 3;
         return sortDir === "asc" ? va - vb : vb - va;
       }
       const cmp = String(va).localeCompare(String(vb));
@@ -5279,9 +5346,9 @@ function StudentsPage({ data, setData }) {
   const strength = pwStrength(form.password);
 
   // ── quick stats for header ──────────────────────────────────────────────────
-  const countPaid    = allStudents.filter(s => s.paymentStatus === "paid").length;
-  const countPending = allStudents.filter(s => s.paymentStatus === "pending").length;
-  const countOverdue = allStudents.filter(s => s.paymentStatus === "overdue").length;
+  const countPaid    = allStudents.filter(s => derivePayStatus(data.payments, s.id, data.users) === "paid").length;
+  const countPending = allStudents.filter(s => derivePayStatus(data.payments, s.id, data.users) === "pending").length;
+  const countOverdue = allStudents.filter(s => derivePayStatus(data.payments, s.id, data.users) === "overdue").length;
 
   return (
     <div>
@@ -5367,11 +5434,13 @@ function StudentsPage({ data, setData }) {
           {/* Payment status */}
           <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
             <label style={{ fontSize:11, fontWeight:700, color:"var(--text3)", textTransform:"uppercase", letterSpacing:.5 }}>💳 Payment</label>
-            <select value={payFilter} onChange={e => setPayFilter(e.target.value)}>
+            <select style={{ flex:1, minWidth:120 }} value={payFilter} onChange={e => setPayFilter(e.target.value)}>
               <option value="all">All Statuses</option>
               <option value="paid">✅ Paid</option>
               <option value="pending">⏳ Pending</option>
               <option value="overdue">🔴 Overdue</option>
+              <option value="on_hold">⏸️ On Hold</option>
+              <option value="cancelled">❌ Cancelled</option>
             </select>
           </div>
 
@@ -5539,7 +5608,7 @@ function StudentsPage({ data, setData }) {
                     <td style={{ fontSize:11, fontFamily:"var(--mono)", color:"var(--text3)", whiteSpace:"nowrap" }}>
                       {s.registrationDate || "—"}
                     </td>
-                    <td><Badge status={s.paymentStatus} /></td>
+                    <td><Badge status={derivePayStatus(data.payments, s.id, data.users)} /></td>
                     <td>
                       <div style={{ display:"flex", gap:5 }}>
                         <button className="btn btn-se btn-sm"
@@ -6200,7 +6269,7 @@ function GroupsPage({ data, setData }) {
           <div className="divider" />
           <div className="sh-title mb10">Students ({viewG.students.length})</div>
           {viewG.students.length === 0 ? <div className="empty" style={{ padding: "16px 0" }}><div className="empty-icon" style={{ fontSize: 26 }}>👥</div><div className="empty-title">No students enrolled</div></div>
-            : viewG.students.map(s => <div key={s.id} className="li"><Av name={s.name} /><div style={{ flex: 1 }}><div className="fw7 text-sm">{s.name}</div><div className="text-xs muted">{s.email}</div></div><Badge status={s.paymentStatus} /></div>)}
+            : viewG.students.map(s => <div key={s.id} className="li"><Av name={s.name} /><div style={{ flex: 1 }}><div className="fw7 text-sm">{s.name}</div><div className="text-xs muted">{s.email}</div></div><Badge status={derivePayStatus(data.payments, s.id, data.users)} /></div>)}
           {viewG.series.length > 0 && <>
             <div className="divider" />
             <div className="sh-title mb10">Recurring Series</div>
@@ -6238,7 +6307,28 @@ function PaymentsPage({ data, setData, userRole, userId }) {
     const d = new Date();
     return d.toLocaleString("default",{month:"long"})+" "+d.getFullYear();
   });
-  const [form, setForm] = useState({ studentId:"", amount:"", month:new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"}), status:"pending", dueDate:"" });
+  // Auto-fill payment form based on selected student's last payment
+  const autoFillPayForm = (studentId, currentPayments) => {
+    const now = new Date();
+    // Default month = current month as YYYY-MM for input[type=month]
+    const defaultMonth = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
+    // Default due = 1st of next month
+    const nextMonth = new Date(now.getFullYear(), now.getMonth()+1, 1);
+    const defaultDue = nextMonth.toISOString().split("T")[0];
+    if (!studentId) return { studentId:"", amount:"", month:defaultMonth, status:"paid", dueDate:defaultDue };
+    const paid = currentPayments
+      .filter(p => String(p.studentId) === String(studentId) && p.status === "paid" && p.date)
+      .sort((a,b) => b.date.localeCompare(a.date));
+    const last = paid[0];
+    return {
+      studentId,
+      amount: last ? String(last.amount) : "",
+      month: defaultMonth,
+      status: "paid",
+      dueDate: defaultDue,
+    };
+  };
+  const [form, setForm] = useState(() => autoFillPayForm("", []));
 
   // ── period filter ─────────────────────────────────────────────────────────────
   const [period,    setPeriod]    = useState("monthly");    // daily|weekly|monthly|yearly|custom
@@ -6393,17 +6483,24 @@ function PaymentsPage({ data, setData, userRole, userId }) {
   const addPayment = async () => {
     if(!form.studentId||!form.amount){toast("Student and amount required","error");return;}
     try {
+      // Convert YYYY-MM month picker value to readable label e.g. "March 2026"
+      let monthLabel = form.month;
+      if (form.month && /^\d{4}-\d{2}$/.test(form.month)) {
+        const [yr, mo] = form.month.split("-").map(Number);
+        monthLabel = new Date(yr, mo-1, 1).toLocaleString("default", { month: "long", year: "numeric" });
+      }
       const newP = await api.payments.create({
         ...form,
+        month: monthLabel,
         amount: Number(form.amount),
         date: form.status==="paid" ? new Date().toISOString().split("T")[0] : null,
-        dueDate: form.dueDate || new Date(Date.now()+7*86400000).toISOString().split("T")[0],
+        dueDate: form.dueDate,
       });
       const flat = { ...newP, id: newP._id?.toString() || newP.id };
       setData(d=>({...d, payments:[...d.payments, flat]}));
       toast("Payment recorded ✅");
       setShowAdd(false);
-      setForm({studentId:"",amount:"",month:new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"}),status:"pending",dueDate:""});
+      setForm(autoFillPayForm("", data.payments));
     } catch(e) { toast(e.message || "Failed to add payment", "error"); }
   };
 
@@ -6631,7 +6728,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
                       {hasOverdue?"⚠ Overdue: ":"Pending: "}{fmt$(owed)}
                     </div>}
                   </div>
-                  <Badge status={st.paymentStatus}/>
+                  <Badge status={derivePayStatus(data.payments, st.id, data.users)}/>
                 </div>
               );
             })}
@@ -6743,7 +6840,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
                         <div className="fw7" style={{fontSize:13}}>{st.name}</div>
                         <div style={{fontSize:11,color:"var(--text3)"}}>{myPay.length} payment(s) this period</div>
                       </div>
-                      <Badge status={st.paymentStatus}/>
+                      <Badge status={derivePayStatus(data.payments, st.id, data.users)}/>
                     </div>
                     <div style={{display:"flex",gap:8,marginBottom:8}}>
                       {[{l:"Paid",v:fmt$(paid),c:"#22c55e"},{l:"Owed",v:fmt$(owed),c:owed>0?"#ef4444":"var(--text3)"}].map((x,i)=>(
@@ -6879,9 +6976,12 @@ function PaymentsPage({ data, setData, userRole, userId }) {
       {/* ── RECORD STUDENT PAYMENT MODAL ── */}
       <Modal open={showAdd} onClose={()=>setShowAdd(false)} title="Record Student Payment">
         <div className="fg"><label>Student *</label>
-          <select value={form.studentId} onChange={e=>setForm(p=>({...p,studentId:e.target.value}))}>
+          <select value={form.studentId} onChange={e=>{
+            const sid = e.target.value;
+            setForm(autoFillPayForm(sid, data.payments));
+          }}>
             <option value="">Select student…</option>
-            {data.users.filter(u=>u.role==="student").map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            {data.users.filter(u=>u.role==="student" && u.paymentStatus !== "cancelled").sort((a,b)=>a.name.localeCompare(b.name)).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
         <div className="input-row">
@@ -6889,7 +6989,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
             <input type="number" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="150"/>
           </div>
           <div className="fg"><label>Month / Period</label>
-            <input value={form.month} onChange={e=>setForm(p=>({...p,month:e.target.value}))} placeholder={new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}/>
+            <input type="month" value={form.month} onChange={e=>setForm(p=>({...p,month:e.target.value}))}/>
           </div>
           <div className="fg"><label>Due Date</label>
             <input type="date" value={form.dueDate} onChange={e=>setForm(p=>({...p,dueDate:e.target.value}))}/>
@@ -6899,6 +6999,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
               <option value="paid">Paid</option>
               <option value="pending">Pending</option>
               <option value="overdue">Overdue</option>
+              <option value="on_hold">On Hold</option>
             </select>
           </div>
         </div>
@@ -7099,13 +7200,13 @@ function StudentDashboard({ user, data }) {
 
   return (
     <div>
-      <div className="ph"><div><div className="ph-title">Hello, {user.name.split(" ")[0]} 👋</div><div className="ph-sub">Your learning overview</div></div><Badge status={user.paymentStatus} /></div>
+      <div className="ph"><div><div className="ph-title">Hello, {user.name.split(" ")[0]} 👋</div><div className="ph-sub">Your learning overview</div></div><Badge status={derivePayStatus(data.payments, user.id, data.users)} /></div>
       <div className="g4 mb16">
         {[
           { icon: "📅", label: "Upcoming", value: upcoming.length, color: "#3b82f6" },
           { icon: "✅", label: "Completed", value: completed.length, color: "#22c55e" },
           { icon: "📊", label: "Attendance", value: `${attRate}%`, color: "#f59e0b" },
-          { icon: "💳", label: "Status", value: user.paymentStatus, color: statusColor[user.paymentStatus] ?? "#f97316" },
+          { icon: "💳", label: "Status", value: derivePayStatus(data.payments, user.id, data.users), color: statusColor[derivePayStatus(data.payments, user.id, data.users)] ?? "#f97316" },
         ].map((s, i) => (
           <div key={i} className="card stat" style={{ borderColor: `${s.color}20` }}>
             <div className="stat-glow" style={{ background: s.color }} />
@@ -7657,7 +7758,7 @@ function Analytics({ data, teacherFilter = null }) {
                       {st.owed>0&&<span style={{color:"#f59e0b",fontWeight:600}}> · {fmt$(st.owed)} owed</span>}
                     </div>
                   </div>
-                  <Badge status={st.paymentStatus}/>
+                  <Badge status={derivePayStatus(data.payments, st.id, data.users)}/>
                 </div>
               ))}
             </div>
@@ -7828,7 +7929,7 @@ function Analytics({ data, teacherFilter = null }) {
                     </div>
                   )}
                 </div>
-                <Badge status={st.paymentStatus}/>
+                <Badge status={derivePayStatus(data.payments, st.id, data.users)}/>
               </div>
             ))}
           </div>
@@ -10241,6 +10342,31 @@ export default function App() {
   useEffect(() => {
     if (user) loadAllData();
   }, [user, loadAllData]);
+
+  // Auto-overdue check: runs after data loads and every 24h
+  useEffect(() => {
+    if (!user || user.role !== "admin") return;
+    if (!data.users.length) return;
+    const runCheck = async () => {
+      const toCreate = computeOverduePayments(data.users, data.payments);
+      if (toCreate.length === 0) return;
+      const created = [];
+      for (const p of toCreate) {
+        try {
+          const newP = await api.payments.create(p);
+          const flat = { ...newP, id: newP._id?.toString() || newP.id };
+          created.push(flat);
+        } catch(e) { console.warn("Auto-overdue create failed:", e); }
+      }
+      if (created.length > 0) {
+        setData(d => ({ ...d, payments: [...d.payments, ...created] }));
+        console.log(`Auto-overdue: created ${created.length} overdue record(s)`);
+      }
+    };
+    runCheck();
+    const timer = setInterval(runCheck, 24 * 60 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [user, data.users, data.payments]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const toasts = useToasts();

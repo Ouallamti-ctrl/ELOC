@@ -165,40 +165,47 @@ function derivePayStatus(payments, studentId, users) {
 // Auto-overdue: given all students, payments, and today's date,
 // return list of new overdue payment objects to create for students who missed their monthly payment.
 // Skips students who are on_hold or cancelled.
+// Parse which month a payment COVERS (not when it was recorded)
+function parsePaymentMonth(p) {
+  if (p.dueDate) { const d = new Date(p.dueDate); if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), 1); }
+  if (p.month)   { const d = new Date(p.month + " 1"); if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), 1); }
+  if (p.date)    { const d = new Date(p.date); if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), 1); }
+  return null;
+}
+
 function computeOverduePayments(students, payments) {
   const today = new Date(); today.setHours(0,0,0,0);
   const toCreate = [];
   for (const st of students) {
     if (st.role !== "student") continue;
     if (st.paymentStatus === "on_hold" || st.paymentStatus === "cancelled") continue;
-    // Find most recent paid payment
-    const paid = payments
-      .filter(p => String(p.studentId) === String(st.id) && p.status === "paid" && p.date)
-      .sort((a, b) => b.date.localeCompare(a.date));
-    if (paid.length === 0) continue;
-    const lastPaid = paid[0];
-    const lastDate = new Date(lastPaid.date);
-    // Next due = exactly 1 month after last paid date
-    const nextDue = new Date(lastDate);
-    nextDue.setMonth(nextDue.getMonth() + 1);
+    const paidPayments = payments.filter(p => String(p.studentId) === String(st.id) && p.status === "paid");
+    if (paidPayments.length === 0) continue;
+    // Sort by the month the payment COVERS, not when it was recorded
+    const withMonth = paidPayments
+      .map(p => ({ p, monthStart: parsePaymentMonth(p) }))
+      .filter(x => x.monthStart !== null)
+      .sort((a, b) => b.monthStart - a.monthStart);
+    if (withMonth.length === 0) continue;
+    const { p: lastPaid, monthStart: lastCoveredMonth } = withMonth[0];
+    // Next due = 1st of the month after last covered month
+    const nextDue = new Date(lastCoveredMonth.getFullYear(), lastCoveredMonth.getMonth() + 1, 1);
+    // Use same day-of-month as due date if available
+    const dayOfMonth = lastPaid.dueDate ? new Date(lastPaid.dueDate).getDate() : (lastPaid.date ? new Date(lastPaid.date).getDate() : 1);
+    nextDue.setDate(dayOfMonth);
     nextDue.setHours(0,0,0,0);
-    if (nextDue > today) continue; // not yet due
-    // Check if an overdue or paid record already exists for that month
-    const nextMonthKey = nextDue.getFullYear() + "-" + String(nextDue.getMonth() + 1).padStart(2, "0");
-    const alreadyExists = payments.some(p =>
-      String(p.studentId) === String(st.id) &&
-      (p.status === "overdue" || p.status === "paid") &&
-      p.dueDate && p.dueDate.startsWith(nextMonthKey)
-    );
-    if (alreadyExists) continue;
-    toCreate.push({
-      studentId: String(st.id),
-      amount: lastPaid.amount,
-      month: nextDue.toLocaleString("default", { month: "long", year: "numeric" }),
-      status: "overdue",
-      dueDate: nextDue.toISOString().split("T")[0],
-      date: null,
+    if (nextDue > today) continue;
+    const nextKey   = nextDue.getFullYear() + "-" + String(nextDue.getMonth() + 1).padStart(2, "0");
+    const nextLabel = nextDue.toLocaleString("default", { month: "long", year: "numeric" });
+    const alreadyExists = payments.some(p => {
+      if (String(p.studentId) !== String(st.id)) return false;
+      if (p.status !== "overdue" && p.status !== "paid") return false;
+      if (p.dueDate && p.dueDate.startsWith(nextKey)) return true;
+      if (p.month && p.month.toLowerCase() === nextLabel.toLowerCase()) return true;
+      return false;
     });
+    if (alreadyExists) continue;
+    toCreate.push({ studentId: String(st.id), amount: lastPaid.amount, month: nextLabel, status: "overdue", dueDate: nextDue.toISOString().split("T")[0], date: null });
   }
   return toCreate;
 }

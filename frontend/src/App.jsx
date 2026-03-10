@@ -54,23 +54,46 @@ const deepClean = (obj) => {
 function generateRecurringSessions(config, existingStudents) {
   const { title, groupId, teacherId, startTime, endTime, duration, recurringDays, endType, endDate, repeatWeeks, seriesId } = config;
   const sessions = [];
-  const start = new Date(config.startDate);
-  let current = new Date(start);
-  let limit;
 
-  if (endType === "date") limit = new Date(endDate);
-  else if (endType === "weeks") limit = new Date(start.getTime() + repeatWeeks * 7 * 24 * 60 * 60 * 1000);
-  else if (endType === "academic_year") limit = new Date(start.getFullYear() + 1, start.getMonth(), start.getDate());
-  else limit = new Date(start.getTime() + 52 * 7 * 24 * 60 * 60 * 1000); // max 1 year for "indefinite"
+  // Parse dates as LOCAL time (split YYYY-MM-DD manually) to avoid UTC-offset day-shift bugs.
+  // e.g. new Date("2026-01-05") = UTC midnight = Jan 4 11pm in UTC+1 → getDay() returns wrong day.
+  const parseLocalDate = (str) => {
+    const [y, m, d] = str.split("-").map(Number);
+    return new Date(y, m - 1, d); // local midnight — getDay() always correct
+  };
+
+  const start = parseLocalDate(config.startDate);
+
+  // Build limit date using local-safe arithmetic
+  let limit;
+  if (endType === "date") {
+    limit = parseLocalDate(endDate);
+  } else if (endType === "weeks") {
+    limit = new Date(start.getFullYear(), start.getMonth(), start.getDate() + repeatWeeks * 7);
+  } else if (endType === "academic_year") {
+    limit = new Date(start.getFullYear() + 1, start.getMonth(), start.getDate());
+  } else {
+    limit = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 52 * 7);
+  }
 
   const attendance = {};
   existingStudents.forEach(sid => { attendance[sid] = null; });
 
+  // Iterate day by day using local year/month/day arithmetic — immune to DST shifts
+  let y = start.getFullYear(), m = start.getMonth(), d = start.getDate();
   let safeCount = 0;
-  while (current <= limit && safeCount < 500) {
-    const dayOfWeek = current.getDay();
+
+  while (safeCount < 1000) {
+    const current = new Date(y, m, d);
+    if (current > limit) break;
+    safeCount++;
+
+    const dayOfWeek = current.getDay(); // correct in local time
     if (recurringDays.includes(dayOfWeek)) {
-      const dateStr = current.toISOString().split("T")[0];
+      // Format date as YYYY-MM-DD in local time (not UTC)
+      const dateStr = current.getFullYear() + "-"
+        + String(current.getMonth() + 1).padStart(2, "0") + "-"
+        + String(current.getDate()).padStart(2, "0");
       sessions.push({
         id: Date.now() + Math.random(),
         seriesId,
@@ -78,7 +101,7 @@ function generateRecurringSessions(config, existingStudents) {
         groupId,
         teacherId,
         date: dateStr,
-        startTime: startTime,
+        startTime,
         time: startTime,
         endTime,
         duration: Number(duration),
@@ -89,11 +112,16 @@ function generateRecurringSessions(config, existingStudents) {
         isException: false,
         recurringDays,
         endType,
-        endDate: limit.toISOString().split("T")[0],
+        endDate: limit.getFullYear() + "-" + String(limit.getMonth()+1).padStart(2,"0") + "-" + String(limit.getDate()).padStart(2,"0"),
       });
     }
-    current.setDate(current.getDate() + 1);
-    safeCount++;
+
+    // Advance by 1 day using local arithmetic (immune to DST)
+    d += 1;
+    const next = new Date(y, m, d);
+    y = next.getFullYear();
+    m = next.getMonth();
+    d = next.getDate();
   }
   return sessions;
 }
@@ -1203,13 +1231,13 @@ function RecurringSessionForm({ groups, teachers, onSave, onClose, defaultTeache
   const [title, setTitle] = useState("");
   const [groupId, setGroupId] = useState(groups.length === 1 ? String(groups[0].id) : "");
   const [teacherId, setTeacherId] = useState(defaultTeacherId ? String(defaultTeacherId) : (teachers.length === 1 ? String(teachers[0].id) : ""));
-  const [startDate, setStartDate] = useState("2025-02-27");
+  const [startDate, setStartDate] = useState(() => { const t = new Date(); return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0"); });
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:30");
   const [duration, setDuration] = useState(90);
   const [selectedDays, setSelectedDays] = useState([]);
   const [endType, setEndType] = useState("date");
-  const [endDate, setEndDate] = useState("2025-06-30");
+  const [endDate, setEndDate] = useState(() => { const t = new Date(); t.setMonth(t.getMonth()+4); return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-01"; });
   const [repeatWeeks, setRepeatWeeks] = useState(12);
   const [notes, setNotes] = useState("");
   const [preview, setPreview] = useState(null);
@@ -1496,6 +1524,50 @@ function SeriesManager({ data, setData, filteredSeries }) {
     toast("Series deleted");
   };
 
+  const repairSeries = async (ser) => {
+    const today = new Date();
+    const todayStr = today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
+    // Keep past/completed sessions, regenerate all upcoming ones from today forward
+    const existingStudents = [];
+    const newConfig = {
+      title: ser.title, groupId: ser.groupId, teacherId: ser.teacherId,
+      startDate: todayStr,
+      startTime: ser.startTime, endTime: ser.endTime, duration: ser.duration,
+      recurringDays: ser.recurringDays,
+      endType: ser.endType || "date",
+      endDate: ser.endDate || todayStr.slice(0,4)+"-12-31",
+      repeatWeeks: ser.repeatWeeks || 12,
+      seriesId: ser.id,
+      sessionMode: ser.sessionMode, meetingLink: ser.meetingLink,
+    };
+    const regenerated = generateRecurringSessions(newConfig, existingStudents)
+      .map(s => ({ ...s, sessionMode: ser.sessionMode || "offline", meetingLink: ser.meetingLink || null }));
+
+    // Delete old upcoming sessions from DB
+    const toDelete = data.sessions.filter(s => String(s.seriesId) === String(ser.id) && s.status === "upcoming" && s.date >= todayStr);
+    await Promise.allSettled(toDelete.map(s => api.sessions.delete(s.id).catch(()=>{})));
+
+    // Create new correct sessions in DB
+    const cleaned = regenerated.map(({ id, _id, ...rest }) => rest);
+    const results = await Promise.allSettled(cleaned.map(s => api.sessions.create(s)));
+    const created = results.filter(r => r.status === "fulfilled").map(r => {
+      const c = deepClean(r.value);
+      if (c.startTime && !c.time) c.time = c.startTime;
+      if (c.time && !c.startTime) c.startTime = c.time;
+      if (!c.attendance || typeof c.attendance !== "object") c.attendance = {};
+      return c;
+    });
+
+    setData(d => ({
+      ...d,
+      sessions: [
+        ...d.sessions.filter(s => !(String(s.seriesId) === String(ser.id) && s.status === "upcoming" && s.date >= todayStr)),
+        ...created,
+      ]
+    }));
+    toast(`🔧 Repaired ${created.length} sessions with correct schedule`);
+  };
+
   return (
     <div>
       <div className="sh mb8"><div className="sh-title">Recurring Series ({seriesToShow.length}{filteredSeries && filteredSeries.length !== data.series.length ? ` of ${data.series.length}` : ""})</div></div>
@@ -1523,10 +1595,11 @@ function SeriesManager({ data, setData, filteredSeries }) {
                   {ser.meetingLink && isValidUrl(ser.meetingLink) && <span style={{ marginLeft: 6, color: "#22c55e" }}>· {detectPlatform(ser.meetingLink)?.name ?? "Meeting link set"}</span>}
                 </div>
               </div>
-              <div className="flex gap8">
+              <div className="flex gap8" style={{flexWrap:"wrap"}}>
                 <button className={`btn btn-sm ${ser.paused ? "btn-pr" : "btn-wa"}`} onClick={() => pauseSeries(ser.id)}>
                   {ser.paused ? "▶ Resume" : "⏸ Pause"}
                 </button>
+                <button className="btn btn-se btn-sm" title="Regenerate upcoming sessions using the correct schedule" onClick={() => repairSeries(ser)}>🔧 Repair</button>
                 <button className="btn btn-da btn-sm" onClick={() => deleteSeries(ser.id, "all")}>🗑 Delete</button>
               </div>
             </div>
@@ -3637,7 +3710,7 @@ function SessionsPage({ data, setData, userRole, userId }) {
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d;
   });
-  const toDateStr = (d) => d.toISOString().split("T")[0];
+  const toDateStr = (d) => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
   const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am–11pm
   const HOUR_H = 56; // px per hour
   const timeToY = (timeStr) => {
@@ -3703,20 +3776,51 @@ function SessionsPage({ data, setData, userRole, userId }) {
           )}
         </div>
       </div>
+      {/* ── TODAY'S SESSIONS SUMMARY BAR ── */}
+      {(() => {
+        const todaySess = filteredSessions.filter(s => s.date === todayStr && !s.isCancelled).sort((a,b) => (a.time||"").localeCompare(b.time||""));
+        if (todaySess.length === 0) return null;
+        return (
+          <div className="card mb12" style={{ padding: "10px 14px", borderLeft: "3px solid var(--accent2)", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <span style={{ fontSize:11, fontWeight:800, color:"var(--accent2)", letterSpacing:1, flexShrink:0 }}>📍 TODAY</span>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", flex:1 }}>
+              {todaySess.map(s => {
+                const color = getGroupColor(s.groupId, data.groups);
+                const grp = data.groups.find(g => String(g.id) === String(s.groupId));
+                return (
+                  <div key={s.id} onClick={() => setViewSess(s)}
+                    style={{ cursor:"pointer", fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:99,
+                      background:`${color}18`, color, border:`1px solid ${color}40` }}>
+                    {s.sessionMode === "online" ? "💻 " : "🏫 "}{s.time} · {s.title}
+                    {grp ? ` · ${grp.name}` : ""}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── TOOLBAR ── */}
       <div className="flex ac gap8 mb12" style={{ flexWrap: "wrap" }}>
         <div className="tabs" style={{ margin: 0, flex: "none" }}>
-          <div className={`tab ${view === "week" ? "active" : ""}`} onClick={() => setView("week")}>Week</div>
-          <div className={`tab ${view === "month" ? "active" : ""}`} onClick={() => setView("month")}>Month</div>
-          <div className={`tab ${view === "agenda" ? "active" : ""}`} onClick={() => setView("agenda")}>Agenda</div>
+          <div className={`tab ${view === "week" ? "active" : ""}`} onClick={() => setView("week")}>📅 Week</div>
+          <div className={`tab ${view === "month" ? "active" : ""}`} onClick={() => setView("month")}>🗓 Month</div>
+          <div className={`tab ${view === "agenda" ? "active" : ""}`} onClick={() => setView("agenda")}>📋 Agenda</div>
           {userRole === "admin" && <div className={`tab ${view === "series" ? "active" : ""}`} onClick={() => setView("series")}>🔁 Series</div>}
         </div>
-        <div className="flex ac gap8" style={{ marginLeft: "auto" }}>
+        <div className="flex ac gap8" style={{ marginLeft: "auto", flexWrap: "wrap" }}>
           <button className="btn btn-se btn-sm" onClick={goToday}>Today</button>
-          <button className="btn-icon" onClick={prev}>←</button>
-          <span style={{ fontWeight: 700, fontSize: 13, minWidth: 180, textAlign: "center", fontFamily: "var(--mono)" }}>{navLabel}</span>
-          <button className="btn-icon" onClick={next}>→</button>
+          {/* Jump to specific date */}
+          <input type="month"
+            value={`${year}-${String(month+1).padStart(2,"0")}`}
+            onChange={e => { const [y,m] = e.target.value.split("-"); setCalDate(new Date(Number(y), Number(m)-1, 1)); }}
+            style={{ fontSize: 12, padding: "4px 8px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg3)", color: "var(--text)", cursor: "pointer", minWidth: 130 }}
+            title="Jump to month"
+          />
+          <button className="btn-icon" onClick={prev} title="Previous">←</button>
+          <span style={{ fontWeight: 700, fontSize: 13, minWidth: 160, textAlign: "center", fontFamily: "var(--mono)" }}>{navLabel}</span>
+          <button className="btn-icon" onClick={next} title="Next">→</button>
         </div>
       </div>
 
@@ -3732,8 +3836,8 @@ function SessionsPage({ data, setData, userRole, userId }) {
         </div>
       )}
 
-      {/* ── ADMIN FILTERS (agenda + series views) ── */}
-      {userRole === "admin" && (view === "agenda" || view === "series") && (
+      {/* ── ADMIN FILTERS ── */}
+      {userRole === "admin" && view !== "series" && (
         <div className="card mb12" style={{ padding: "10px 14px" }}>
           <div className="flex ac gap8" style={{ flexWrap: "wrap" }}>
             <select style={{ flex: 1, minWidth: 150 }} value={filterTeacher} onChange={e => setFilterTeacher(e.target.value)}>
@@ -3815,7 +3919,12 @@ function SessionsPage({ data, setData, userRole, userId }) {
                   .sort((a, b) => a.time.localeCompare(b.time));
 
                 return (
-                  <div key={di} className={`week-day-col ${isToday ? "today" : ""}`} style={{ flex: 1, height: HOURS.length * HOUR_H, position: "relative" }}>
+                  <div key={di} className={`week-day-col ${isToday ? "today" : ""}`}
+                    style={{ flex: 1, height: HOURS.length * HOUR_H, position: "relative", cursor: (userRole === "admin" || userRole === "teacher") ? "pointer" : "default" }}
+                    onClick={e => {
+                      if (e.target !== e.currentTarget) return; // only empty space clicks
+                      if (userRole === "admin" || userRole === "teacher") setShowCreate(true);
+                    }}>
                     {/* Hour lines */}
                     {HOURS.map((h, hi) => (
                       <div key={h} className="week-hour-line" style={{ top: hi * HOUR_H }} />
@@ -3887,7 +3996,12 @@ function SessionsPage({ data, setData, userRole, userId }) {
               const isToday = ds === todayStr;
               return (
                 <div key={i} className={`cal-day ${!day ? "empty" : ""} ${isToday ? "today" : ""}`}
-                  onClick={() => day && (daySessions.length > 0 ? setDayDetail({ day, date: ds, sessions: daySessions }) : null)}>
+                  style={{ cursor: day ? "pointer" : "default" }}
+                  onClick={() => {
+                    if (!day) return;
+                    if (daySessions.length > 0) setDayDetail({ day, date: ds, sessions: daySessions });
+                    else if (userRole === "admin" || userRole === "teacher") setShowCreate(true);
+                  }}>
                   {day && (
                     <>
                       <div className="cal-day-num">{day}</div>

@@ -4137,500 +4137,457 @@ function SessionsPage({ data, setData, userRole, userId }) {
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
 // ─── LANDING PAGE ─────────────────────────────────────────────────────────────
 function LandingPage({ onGoLogin, onGoSignup }) {
-  const [faqOpen,     setFaqOpen]     = useState(null);
-  const [activeTesti, setActiveTesti] = useState(0);
-  const [menuOpen,    setMenuOpen]    = useState(false);
-  const [vw, setVw] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
-  useEffect(() => {
-    const handle = () => setVw(window.innerWidth);
-    window.addEventListener("resize", handle);
-    return () => window.removeEventListener("resize", handle);
-  }, []);
-  const mob = vw < 640;
-  const tab = vw < 1024;
+  const [bannerVisible, setBannerVisible] = React.useState(true);
 
   const LOGO = "data:image/png;base64,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";
 
-  const whatsapp = "https://wa.me/+212604007232";
-  const phone    = "+212 6 04 00 72 32";
+  const LP_CSS = `@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+.lp{background:#0b0907;color:#fff;width:100%;font-family:'Plus Jakarta Sans',sans-serif}
+h1,h2,.why-title,.step-title,.team-name,.testi-name,.price-amount,.stat-val,.logo-name,.sec-h2{font-family:'Bricolage Grotesque',sans-serif}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:16px 40px;border-bottom:1px solid rgba(249,115,22,.1);background:rgba(13,9,5,.9);backdrop-filter:blur(16px);position:sticky;top:0;z-index:100}
+.logo-box{display:flex;align-items:center;gap:10px}
+.logo-badge{width:38px;height:38px;border-radius:10px;overflow:hidden;background:#111}
+.logo-badge img{width:100%;height:100%;object-fit:cover}
+.logo-name{font-size:15px;font-weight:900;color:#fff;letter-spacing:-.3px}
+.logo-sub{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase}
+.nav-links{display:flex;gap:24px;list-style:none}
+.nav-links a{color:rgba(255,255,255,.6);text-decoration:none;font-size:13px;font-weight:600;letter-spacing:.1px}
+.nav-btns{display:flex;gap:8px}
+.btn-primary{background:linear-gradient(135deg,#ff9a4d,#f97316);color:#fff;border:none;padding:9px 20px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(249,115,22,.4);white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.07);color:#fff;border:1px solid rgba(255,255,255,.12);padding:9px 20px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.hero{padding:80px 40px 60px;text-align:center;position:relative;overflow:hidden}
+.hero-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.25);border-radius:99px;padding:6px 14px;font-size:11px;font-weight:700;color:#f97316;letter-spacing:1px;text-transform:uppercase;margin-bottom:24px}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:#f97316;animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.hero h1{font-size:54px;font-weight:800;line-height:1.08;letter-spacing:-2.5px;margin-bottom:18px}
+@keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.gradient-text{background:linear-gradient(270deg,#f97316,#fb923c,#fcd34d,#fb923c,#f97316);background-size:300% 300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:gradientShift 4s ease infinite}
+.hero p{color:rgba(255,255,255,.5);font-size:16px;line-height:1.75;max-width:520px;margin:0 auto 32px}
+.cta-row{display:flex;gap:12px;justify-content:center;margin-bottom:36px;flex-wrap:wrap}
+.btn-lg{padding:15px 36px;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;border:none;display:flex;align-items:center;gap:8px}
+.btn-lg-primary{background:linear-gradient(135deg,#ff9a4d,#f97316);color:#fff;box-shadow:0 8px 32px rgba(249,115,22,.45)}
+.btn-lg-ghost{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.12)}
+.ratings{display:flex;gap:10px;justify-content:center;margin-bottom:36px;flex-wrap:wrap}
+.r-chip{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:7px 14px}
+.r-lbl{font-size:10px;color:rgba(255,255,255,.35)}
+.r-val{font-weight:700;color:#fff;font-size:12px}
+.stats-bar{display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:20px 32px;max-width:640px;margin:0 auto}
+.stat{text-align:center;padding:0 28px}
+.stat-val{font-size:26px;font-weight:900;color:#fff;letter-spacing:-1px}
+.stat-lbl{font-size:11px;color:rgba(255,255,255,.4);margin-top:3px}
+.stat-div{width:1px;background:rgba(255,255,255,.1);height:36px}
+.divider{height:1px;background:rgba(255,255,255,.06);margin:0 40px}
+.section{padding:72px 40px}
+.section-inner{max-width:1100px;margin:0 auto}
+.sec-label{font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#f97316;display:block;margin-bottom:12px}
+.sec-h2{font-size:38px;font-weight:800;line-height:1.1;letter-spacing:-1.5px;color:#fff}
+.sec-head{text-align:center;margin-bottom:52px}
+.sec-alt{background:rgba(255,255,255,.015)}
+.why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.why-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:28px 24px;transition:border-color .2s,transform .2s}
+.why-card:hover{border-color:rgba(249,115,22,.3);transform:translateY(-2px)}
+.why-icon{font-size:28px;margin-bottom:14px}
+.why-title{font-size:15px;font-weight:800;color:#fff;margin-bottom:8px}
+.why-desc{font-size:13px;color:rgba(255,255,255,.45);line-height:1.75}
+.steps-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.step{text-align:center;padding:8px}
+.step-num{width:56px;height:56px;border-radius:99px;background:linear-gradient(135deg,#ff9a4d,#f97316);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#fff;margin:0 auto 16px;box-shadow:0 8px 28px rgba(249,115,22,.45)}
+.step-icon{font-size:22px;margin-bottom:10px}
+.step-title{font-size:15px;font-weight:800;color:#fff;margin-bottom:8px}
+.step-desc{font-size:13px;color:rgba(255,255,255,.45);line-height:1.7;max-width:220px;margin:0 auto}
+.team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:52px}
+.team-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:28px 20px;text-align:center}
+.team-photo{width:100px;height:100px;border-radius:50%;object-fit:cover;object-position:top;margin:0 auto 16px;display:block;border:3px solid rgba(255,255,255,.1)}
+.team-role{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+.team-name{font-size:16px;font-weight:900;color:#fff;margin-bottom:6px}
+.team-bio{font-size:12px;color:rgba(255,255,255,.35);line-height:1.6}
+.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.testi-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:24px}
+.testi-q{font-size:28px;color:rgba(249,115,22,.35);line-height:1;margin-bottom:10px}
+.testi-text{font-size:13px;color:rgba(255,255,255,.5);font-style:italic;line-height:1.8;margin-bottom:14px}
+.testi-stars{color:#f59e0b;font-size:12px;margin-bottom:12px;letter-spacing:2px}
+.testi-footer{border-top:1px solid rgba(255,255,255,.07);padding-top:12px;display:flex;align-items:center;gap:10px}
+.testi-av{width:34px;height:34px;border-radius:99px;background:linear-gradient(135deg,#ff9a4d,#f97316);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0}
+.testi-name{font-size:13px;font-weight:800;color:#fff}
+.testi-role-sm{font-size:11px;color:rgba(255,255,255,.35);margin-top:2px}
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.price-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:28px 24px;position:relative}
+.price-card.featured{border-color:rgba(249,115,22,.4);background:rgba(249,115,22,.06)}
+.price-badge{position:absolute;top:14px;right:14px;background:#f97316;color:#fff;font-size:9px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;padding:4px 10px;border-radius:99px}
+.price-name{font-size:11px;font-weight:700;color:rgba(255,255,255,.45);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px}
+.price-amount{font-size:36px;font-weight:900;color:#fff;letter-spacing:-1.5px}
+.price-period{font-size:13px;color:rgba(255,255,255,.35);margin-left:5px}
+.price-note{font-size:11px;color:rgba(255,255,255,.3);margin-top:4px;margin-bottom:14px}
+.price-features{display:flex;flex-direction:column;gap:9px;margin:20px 0 24px}
+.price-feat{display:flex;align-items:center;gap:9px;font-size:13px;color:rgba(255,255,255,.65)}
+.price-check{color:#22c55e;font-weight:800;flex-shrink:0}
+.price-btn{width:100%;padding:12px;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;border:none}
+.price-btn-primary{background:linear-gradient(135deg,#ff9a4d,#f97316);color:#fff;box-shadow:0 4px 18px rgba(249,115,22,.4)}
+.price-btn-ghost{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.1)}
+.promo-bar{background:linear-gradient(135deg,rgba(249,115,22,.15),rgba(249,115,22,.05));border:1px solid rgba(249,115,22,.25);border-radius:14px;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:24px 0 36px;flex-wrap:wrap}
+.promo-text{font-size:15px;font-weight:800;color:#fff}
+.promo-accent{color:#f97316}
+.faq-max{max-width:740px;margin:0 auto}
+.faq-item{border-bottom:1px solid rgba(255,255,255,.07);padding:20px 0}
+.faq-q{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700;color:#fff}
+.faq-plus{font-size:22px;color:#f97316}
+.faq-a{font-size:13px;color:rgba(255,255,255,.5);line-height:1.8;margin-top:14px}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.contact-info-row{display:flex;gap:14px;align-items:flex-start;padding:16px 18px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.07);margin-bottom:12px}
+.contact-icon{font-size:22px;flex-shrink:0}
+.contact-title{font-size:10px;font-weight:700;color:#f97316;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.contact-line{font-size:13px;color:rgba(255,255,255,.5);line-height:1.75}
+.contact-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.wa-btn{display:flex;align-items:center;gap:8px;background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.25);border-radius:11px;padding:11px 18px;color:#fff;text-decoration:none;font-size:13px;font-weight:700}
+.tel-btn{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:11px;padding:11px 18px;color:#fff;text-decoration:none;font-size:13px;font-weight:700}
+.footer{border-top:1px solid rgba(255,255,255,.07);padding:24px 40px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+.footer-copy{font-size:11px;color:rgba(255,255,255,.25)}
+.footer-links{display:flex;gap:18px}
+.footer-links a{font-size:12px;color:rgba(255,255,255,.35);text-decoration:none}
+@media(max-width:1023px){
+  .nav-links{display:none}
+  .why-grid,.team-grid,.testi-grid,.pricing-grid,.steps-grid{grid-template-columns:repeat(2,1fr)}
+  .contact-grid{grid-template-columns:1fr}
+}
+@media(max-width:639px){
+  .nav{padding:12px 16px}
+  .nav-btns{gap:6px}
+  .btn-ghost{padding:8px 14px;font-size:12px;border-radius:9px}
+  .btn-primary{padding:8px 14px;font-size:12px;border-radius:9px}
+  .hero{padding:60px 20px 48px}
+  .hero h1{font-size:34px;letter-spacing:-1px}
+  .section{padding:56px 20px}
+  .why-grid,.team-grid,.testi-grid,.pricing-grid,.steps-grid{grid-template-columns:1fr}
+  .stats-bar{padding:18px 16px;flex-wrap:wrap;gap:12px}
+  .stat{padding:0 12px}
+  .cta-row{flex-direction:column;width:100%}
+  .btn-lg{width:100%;justify-content:center}
+  .divider{margin:0 20px}
+  .footer{padding:20px}
+}
 
-  const faqs = [
-    { q:"How do I register?",                                     a:"Simply click 'Register Now' above. A member of our team will contact you via WhatsApp or email to schedule your free trial session on Google Meet." },
-    { q:"How do I attend classes?",                               a:"After confirming your registration, we will send you a schedule and a Google Meet link via WhatsApp or email before each session." },
-    { q:"How many sessions per month?",                           a:"We offer three sessions per week — approximately 12 per month. Sessions run Mon / Wed / Fri or Tue / Thu / Sat depending on your chosen time slot." },
-    { q:"How long is the program and do I get a certificate?",    a:"Yes! You receive a certificate upon completing the 6-month program. Progress is tracked every step of the way." },
-    { q:"Can I change my teacher?",                               a:"Absolutely. There is no obligation to stay with the same teacher. You can switch whenever you feel it is right for you." },
-  ];
+/* ── AMBIENT GLOW ── */
+.lp-glow-top{position:fixed;top:-180px;left:50%;transform:translateX(-50%);width:1000px;height:650px;background:radial-gradient(ellipse at center,rgba(249,115,22,.09) 0%,rgba(249,115,22,.03) 45%,transparent 70%);pointer-events:none;z-index:0}
+.lp-glow-btm{position:fixed;bottom:-80px;right:-100px;width:550px;height:450px;background:radial-gradient(ellipse at center,rgba(234,88,12,.05) 0%,transparent 65%);pointer-events:none;z-index:0}
 
-  const testimonials = [
-    { name:"Marie Petit",      role:"IT Director, Paris",  rating:5, text:"Every lesson my English level improves. By the end of each class I feel more confident — I never thought I would learn this language. Thank you so much for your efforts and every minute dedicated to explanation. ❤️" },
-    { name:"Bouchera Lkhlage", role:"Pharmacist",           rating:5, text:"One of the best English teachers I've known — a high level and an elegant, enjoyable teaching method. I wish you great success, dear teacher." },
-    { name:"Tarik Brahmi",     role:"Engineer",             rating:5, text:"Truly one of the best English teachers. A real educator with a refined and elegant style in explanation and communication, without equal. Thanks to him I have made great progress." },
-  ];
+/* ── PROMO BANNER ── */
+.promo-banner{position:sticky;top:0;overflow:hidden;background:#0f0a04;border-bottom:1px solid rgba(249,115,22,.2);padding:0;height:44px;display:flex;align-items:center;z-index:101;margin:0}
+.promo-banner::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(249,115,22,.07) 30%,rgba(251,146,60,.1) 50%,rgba(249,115,22,.07) 70%,transparent 100%);animation:bannerPulse 3s ease-in-out infinite}
+.promo-shimmer{position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);animation:shimmerSlide 2.8s ease-in-out infinite}
+@keyframes bannerPulse{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes shimmerSlide{0%{left:-60%}100%{left:160%}}
+.promo-track{display:flex;align-items:center;gap:0;white-space:nowrap;animation:scrollTrack 22s linear infinite;padding-left:100%}
+.promo-track:hover{animation-play-state:paused}
+@keyframes scrollTrack{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.promo-item{display:inline-flex;align-items:center;gap:10px;padding:0 48px}
+.promo-fire{font-size:16px;animation:fireWiggle .6s ease-in-out infinite alternate}
+@keyframes fireWiggle{0%{transform:rotate(-8deg) scale(1)}100%{transform:rotate(8deg) scale(1.15)}}
+.promo-tag{background:linear-gradient(135deg,#ff9a4d,#f97316);color:#fff;font-size:10px;font-weight:900;letter-spacing:2px;text-transform:uppercase;padding:3px 10px;border-radius:99px;box-shadow:0 0 12px rgba(249,115,22,.5)}
+.promo-msg{font-size:13px;font-weight:700;color:#fff;letter-spacing:.2px}
+.promo-msg span{color:#fb923c;font-weight:900}
+.promo-cta-inline{background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.4);color:#fb923c;font-size:11px;font-weight:800;letter-spacing:.5px;padding:4px 14px;border-radius:99px;cursor:pointer;text-transform:uppercase}
+.promo-close{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:rgba(255,255,255,.3);font-size:16px;cursor:pointer;line-height:1;padding:4px;z-index:2}
 
-  const WHY = [
-    { icon:"🎯", title:"Your Perfect Tutor",       desc:"30+ professional, certified teachers who love their craft — they'll guide you through English with varied, stimulating methods." },
-    { icon:"🔄", title:"Switch Any Time",           desc:"You're never locked in. Change your teacher whenever you feel ready — zero obligation, zero hassle." },
-    { icon:"💻", title:"All-in-One Platform",       desc:"A realistic, immersive online English learning environment — everything you need in one place." },
-    { icon:"📈", title:"Track Your Progress",       desc:"See exactly how far you've come and the pace at which you're advancing through each CEFR level." },
-    { icon:"📝", title:"Lesson Notes",              desc:"Your teacher takes notes during every lesson. Never lose an important point — review them any time." },
-    { icon:"📖", title:"Personal Vocabulary List",  desc:"Build your own glossary of words to remember. Your teacher adds to it too — a living record of your growth." },
-  ];
+/* ── WHATSAPP FIXED BUTTON ── */
+.wa-float{position:fixed;left:20px;bottom:28px;z-index:999999;display:flex;flex-direction:column;align-items:center;gap:8px;text-decoration:none}
+.wa-float-btn{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#ff9a4d,#f97316);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(249,115,22,.5);animation:waPop .5s cubic-bezier(.34,1.56,.64,1) both,waPulse 2.5s ease-in-out 1s infinite}
+.wa-float-btn:hover{transform:scale(1.12) !important;box-shadow:0 6px 30px rgba(249,115,22,.7)}
+.wa-float-btn svg{width:28px;height:28px;fill:#fff;display:block}
+.wa-ring{position:absolute;width:56px;height:56px;border-radius:50%;border:2.5px solid rgba(249,115,22,.55);animation:waRing 2.5s ease-out 1s infinite;pointer-events:none}
+.wa-ring2{position:absolute;width:56px;height:56px;border-radius:50%;border:2px solid rgba(249,115,22,.3);animation:waRing 2.5s ease-out 1.5s infinite;pointer-events:none}
+.wa-tooltip{background:rgba(0,0,0,.8);color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:99px;white-space:nowrap;opacity:0;transform:translateX(-8px);transition:opacity .2s,transform .2s;position:absolute;left:68px;bottom:50%;transform:translateY(50%) translateX(-8px);pointer-events:none}
+.wa-float:hover .wa-tooltip{opacity:1;transform:translateY(50%) translateX(0)}
+@keyframes waPop{0%{opacity:0;transform:scale(0)}100%{opacity:1;transform:scale(1)}}
+@keyframes waPulse{0%,100%{box-shadow:0 4px 20px rgba(249,115,22,.5)}50%{box-shadow:0 4px 32px rgba(249,115,22,.8)}}
+@keyframes waRing{0%{transform:scale(1);opacity:.7}100%{transform:scale(2.4);opacity:0}}
+@media(max-width:639px){.promo-tag{display:none}.promo-item{padding:0 28px}.promo-msg{font-size:12px}}
+@media(max-width:400px){.btn-ghost{display:none}.logo-sub{display:none}}`;
 
-  const STEPS = [
-    { n:"1", icon:"📋", title:"Register on our platform",         desc:"Fill out a quick form. A team member will get in touch to confirm your free trial." },
-    { n:"2", icon:"🎓", title:"Discover your level — free trial", desc:"Join a free trial session on Google Meet. Meet your teacher and experience the method." },
-    { n:"3", icon:"🚀", title:"Join your online sessions",         desc:"Get your personalised schedule and start your journey toward fluent English." },
-  ];
-
-  const SERVICES = [
-    { icon:"👨‍🏫", title:"Professional Teachers",     desc:"Highly qualified tutors experienced in distance learning — innovative methods that make every lesson stimulating and effective." },
-    { icon:"📅",  title:"Three Sessions per Week",    desc:"3 sessions / week, ~12 per month. Mon / Wed / Fri or Tue / Thu / Sat — you choose the slot that fits your life." },
-    { icon:"🗣️", title:"Communication Sessions",      desc:"A dedicated weekly communication session — diverse topics, natural flow, real confidence." },
-    { icon:"🎯",  title:"Personalised Support",        desc:"Ask anything about your courses — grammar, vocabulary, exam prep. Direct, tailored guidance every step of the way." },
-  ];
-
-  const TEAM = [
-    { initials:"OL", name:"Oualid Lamti",    role:"Expert Manager",    color:"#f97316" },
-    { initials:"JL", name:"Jessica Lahr",    role:"Teacher Coach",     color:"#6366f1" },
-    { initials:"NM", name:"Nouhaila Moussia",role:"Expert Consultant",  color:"#22c55e" },
-  ];
-
-  const PLANS = [
-    { name:"Individual",   price:"600 DH", period:"/month",    featured:false, features:["3 sessions per week","1-on-1 with your teacher","Extra sessions available","24/7 Premium support"] },
-    { name:"Group",        price:"650 DH", period:"/3 months", featured:true,  features:["Up to 5 students","3 sessions per week","Communication sessions","Cambridge courses"] },
-    { name:"Professional", price:"850 DH", period:"/month",    featured:false, features:["3 sessions per week","Business English","Professional communication","Practical sessions"] },
-  ];
-
-  // ── responsive style helpers ───────────────────────────────────────────────
-  const sec  = { padding: mob ? "60px 20px" : tab ? "72px 5%" : "96px 5%", width:"100%", boxSizing:"border-box" };
-  const wrap = { maxWidth:1140, margin:"0 auto" };
-  const lbl  = { fontSize:11, fontWeight:800, letterSpacing:3, textTransform:"uppercase", color:"#f97316", marginBottom:12, display:"block" };
-  const h2   = { fontSize: mob ? 26 : tab ? 32 : 42, fontWeight:900, lineHeight:1.15, color:"#fff", marginBottom:0 };
-  const mut  = { color:"rgba(255,255,255,.45)", fontSize:14, lineHeight:1.75 };
-  const grid2 = { display:"grid", gridTemplateColumns: tab ? "1fr" : "1fr 1fr", gap: mob ? 32 : 48, alignItems:"center" };
-  const grid3 = { display:"grid", gridTemplateColumns: mob ? "1fr" : tab ? "repeat(2,1fr)" : "repeat(3,1fr)", gap: mob ? 16 : 24 };
-  const gridWhy = { display:"grid", gridTemplateColumns: mob ? "1fr" : tab ? "repeat(2,1fr)" : "repeat(3,1fr)", gap: mob ? 16 : 20 };
+  const WA_NUMBER = "212604007232";
 
   return (
-    <div className="lp">
-      <div className="lp-orb1"/><div className="lp-orb2"/><div className="lp-orb3"/>
-      <div className="lp-grid"/>
+    <>
+      <style>{LP_CSS}</style>
 
-      {/* ━━━ NAV ━━━ */}
-      <nav className="lp-nav" style={{ padding: mob ? "14px 20px" : "18px 5%" }}>
-        <div className="lp-logo-box">
-          <div className="lp-logo-badge">
-            <img src={LOGO} alt="ELOC" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-          </div>
-          <div>
-            <div className="lp-logo-text">ELOC</div>
-            <div className="lp-logo-sub">International</div>
-          </div>
-        </div>
+      {/* ── AMBIENT GLOW ── */}
+      <div className="lp-glow-top" />
+      <div className="lp-glow-btm" />
 
-        {/* Desktop nav links */}
-        {!tab && (
-          <ul className="lp-nav-links">
-            {["About","Services","Team","Pricing","FAQ"].map(l=>(
-              <li key={l}><a href={"#lp-"+l.toLowerCase()}>{l}</a></li>
+      {/* ── PROMO BANNER ── */}
+      {bannerVisible && (
+        <div className="promo-banner" id="promoBanner">
+          <div className="promo-shimmer" />
+          <div className="promo-track">
+            {[0,1].map(i => (
+              <React.Fragment key={i}>
+                <div className="promo-item"><span className="promo-fire">🔥</span><span className="promo-tag">Limited Offer</span><span className="promo-msg">Register now and get <span>40% OFF</span> your first month!</span><button className="promo-cta-inline" onClick={onGoSignup}>Claim Now →</button></div>
+                <div className="promo-item"><span className="promo-fire">⚡</span><span className="promo-tag">Free Trial</span><span className="promo-msg">Start with a <span>free session</span> — no payment required</span><button className="promo-cta-inline" onClick={onGoSignup}>Book Now →</button></div>
+                <div className="promo-item"><span className="promo-fire">🎓</span><span className="promo-tag">A1 → C2</span><span className="promo-msg">Professional English online · <span>Join 500+ students</span> today</span><button className="promo-cta-inline" onClick={onGoSignup}>Get Started →</button></div>
+              </React.Fragment>
             ))}
-          </ul>
-        )}
-
-        {/* Desktop action buttons */}
-        {!mob && (
-          <div style={{display:"flex",gap:10,alignItems:"center"}}>
-            {!tab && (
-              <a href={`tel:${phone}`} style={{display:"flex",alignItems:"center",gap:7,color:"rgba(255,255,255,.6)",textDecoration:"none",fontSize:12,fontWeight:600}}>
-                📞 {phone}
-              </a>
-            )}
-            <button className="lp-btn-signup" onClick={onGoSignup} style={{padding:"9px 18px",fontSize:13}}>Register Free</button>
-            <button className="lp-btn-login"  onClick={onGoLogin}  style={{padding:"9px 18px",fontSize:13}}>Sign In</button>
           </div>
-        )}
-
-        {/* Mobile hamburger */}
-        {mob && (
-          <button onClick={()=>setMenuOpen(o=>!o)} style={{background:"none",border:"1px solid rgba(255,255,255,.2)",borderRadius:8,padding:"8px 12px",color:"#fff",fontSize:18,cursor:"pointer",lineHeight:1}}>
-            {menuOpen ? "✕" : "☰"}
-          </button>
-        )}
-      </nav>
-
-      {/* Mobile dropdown menu */}
-      {mob && menuOpen && (
-        <div style={{background:"rgba(10,10,10,.97)",borderBottom:"1px solid rgba(255,255,255,.08)",padding:"20px",display:"flex",flexDirection:"column",gap:14,position:"sticky",top:52,zIndex:99}}>
-          {["About","Services","Team","Pricing","FAQ"].map(l=>(
-            <a key={l} href={"#lp-"+l.toLowerCase()} onClick={()=>setMenuOpen(false)}
-              style={{color:"rgba(255,255,255,.7)",textDecoration:"none",fontSize:15,fontWeight:600,padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,.05)"}}>
-              {l}
-            </a>
-          ))}
-          <div style={{display:"flex",gap:10,marginTop:6}}>
-            <button className="lp-btn-signup" onClick={()=>{setMenuOpen(false);onGoSignup();}} style={{flex:1,justifyContent:"center",padding:"11px 0",fontSize:14}}>Register Free</button>
-            <button className="lp-btn-login"  onClick={()=>{setMenuOpen(false);onGoLogin();}}  style={{flex:1,justifyContent:"center",padding:"11px 0",fontSize:14}}>Sign In</button>
-          </div>
+          <button className="promo-close" onClick={() => setBannerVisible(false)}>✕</button>
         </div>
       )}
 
-      {/* ━━━ HERO ━━━ */}
-      <div className="lp-hero" id="lp-about" style={{padding: mob ? "72px 20px 60px" : "100px 24px 80px", minHeight: mob ? "auto" : "90vh"}}>
-        <div className="lp-badge"><span className="lp-badge-dot"/>English Language Online Center</div>
-        <h1 className="lp-headline" style={{fontSize: mob ? 36 : tab ? 52 : undefined, letterSpacing: mob ? -1 : undefined}}>
-          Find the Best English<br/><span className="lp-gradient-text">Program for You</span>
-        </h1>
-        <p className="lp-tagline" style={{fontSize: mob ? 15 : undefined}}>
-          Professional tutors · Flexible schedules · Real results from A1 to C2 — all from the comfort of your home.
-        </p>
+      <div className="lp">
 
-        <div className="lp-cta-row" style={{flexDirection: mob ? "column" : "row", width: mob ? "100%" : undefined}}>
-          <button className="lp-btn-signup" onClick={onGoSignup} style={{fontSize:16, padding: mob ? "15px 0" : "17px 42px", width: mob ? "100%" : undefined, justifyContent:"center"}}>🎓 Register Now</button>
-          <button className="lp-btn-login"  onClick={onGoLogin}  style={{fontSize:16, padding: mob ? "15px 0" : "17px 42px", width: mob ? "100%" : undefined, justifyContent:"center"}}>🔐 Login to Dashboard</button>
+      {/* ── NAV ── */}
+      <nav className="nav">
+        <div className="logo-box">
+          <div className="logo-badge"><img src={LOGO} alt="ELOC" /></div>
+          <div><div className="logo-name">ELOC</div><div className="logo-sub">Professional</div></div>
         </div>
+        <ul className="nav-links">
+          <li><a href="#why">About</a></li>
+          <li><a href="#services">Services</a></li>
+          <li><a href="#team">Team</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+        <div className="nav-btns">
+          <button className="btn-ghost" onClick={onGoLogin}>Sign In</button>
+          <button className="btn-primary" onClick={onGoSignup}>Register Free</button>
+        </div>
+      </nav>
 
-        {/* Rating badges */}
-        <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:48}}>
-          {[{e:"⭐",l:"Google",s:"4.9 / 5"},{e:"✅",l:"Trustpilot",s:"Excellent"},{e:"👍",l:"Facebook",s:"Recommended"}].map((r,i)=>(
-            <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.09)",borderRadius:12,padding: mob ? "8px 14px" : "10px 18px"}}>
-              <span style={{fontSize:18}}>{r.e}</span>
-              <div>
-                <div style={{fontSize:10,color:"rgba(255,255,255,.4)",letterSpacing:.5}}>{r.l}</div>
-                <div style={{fontSize:12,fontWeight:700,color:"#fff"}}>{r.s}</div>
+      {/* ── HERO ── */}
+      <div className="hero">
+        <div className="hero-glow" />
+        <div className="hero-badge"><span className="badge-dot" />English Language Online Center</div>
+        <h1>Master English<br /><span className="gradient-text">From Anywhere.</span></h1>
+        <p>Professional tutors · Flexible schedules · Real results from A1 to C2 — all from the comfort of your home.</p>
+        <div className="cta-row">
+          <button className="btn-lg btn-lg-primary" onClick={onGoSignup}>🎓 Start Free Trial</button>
+          <button className="btn-lg btn-lg-ghost" onClick={onGoLogin}>Sign In →</button>
+        </div>
+        <div className="ratings">
+          <div className="r-chip"><span className="r-lbl">Rating</span><span className="r-val">⭐ 4.9 / 5</span></div>
+          <div className="r-chip"><span className="r-lbl">Students</span><span className="r-val">500+</span></div>
+          <div className="r-chip"><span className="r-lbl">Teachers</span><span className="r-val">30+</span></div>
+          <div className="r-chip"><span className="r-lbl">Levels</span><span className="r-val">A1 → C2</span></div>
+        </div>
+        <div className="stats-bar">
+          <div className="stat"><div className="stat-val">500+</div><div className="stat-lbl">Active Students</div></div>
+          <div className="stat-div" />
+          <div className="stat"><div className="stat-val">30+</div><div className="stat-lbl">Expert Teachers</div></div>
+          <div className="stat-div" />
+          <div className="stat"><div className="stat-val">6</div><div className="stat-lbl">CEFR Levels</div></div>
+          <div className="stat-div" />
+          <div className="stat"><div className="stat-val">98%</div><div className="stat-lbl">Satisfaction</div></div>
+        </div>
+      </div>
+
+      <div className="divider" />
+
+      {/* ── WHY ── */}
+      <div className="section" id="why">
+        <div className="section-inner">
+          <div className="sec-head"><span className="sec-label">Why Choose ELOC</span><h2 className="sec-h2">Everything you need to master English</h2></div>
+          <div className="why-grid">
+            {[
+              { icon:"🎯", title:"Your Perfect Tutor",      desc:"30+ professional, certified teachers who love their craft — they'll guide you through English with varied, stimulating methods." },
+              { icon:"🔄", title:"Switch Any Time",          desc:"You're never locked in. Change your teacher whenever you feel ready — zero obligation, zero hassle." },
+              { icon:"💻", title:"All-in-One Platform",      desc:"A realistic, immersive online English learning environment — everything you need in one place." },
+              { icon:"📈", title:"Track Your Progress",      desc:"See exactly how far you've come and the pace at which you're advancing through each CEFR level." },
+              { icon:"📝", title:"Lesson Notes",             desc:"Your teacher takes notes during every lesson. Never lose an important point — review them any time." },
+              { icon:"📖", title:"Personal Vocabulary List", desc:"Build your own glossary of words to remember. Your teacher adds to it too — a living record of your growth." },
+            ].map((c,i) => (
+              <div className="why-card" key={i}>
+                <div className="why-icon">{c.icon}</div>
+                <div className="why-title">{c.title}</div>
+                <div className="why-desc">{c.desc}</div>
               </div>
-            </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="divider" />
+
+      {/* ── HOW IT WORKS ── */}
+      <div className="section sec-alt" id="services">
+        <div className="section-inner">
+          <div className="sec-head"><span className="sec-label">How ELOC Works</span><h2 className="sec-h2">3 steps to join your online sessions</h2></div>
+          <div className="steps-grid">
+            {[
+              { n:"1", icon:"📋", title:"Register on our platform",         desc:"Fill out a quick form. A team member will get in touch to confirm your free trial." },
+              { n:"2", icon:"🎓", title:"Discover your level — free trial", desc:"Join a free trial session on Google Meet. Meet your teacher and experience the method." },
+              { n:"3", icon:"🚀", title:"Join your online sessions",         desc:"Get your personalised schedule and start your journey toward fluent English." },
+            ].map((s,i) => (
+              <div className="step" key={i}>
+                <div className="step-num">{s.n}</div>
+                <div className="step-icon">{s.icon}</div>
+                <div className="step-title">{s.title}</div>
+                <div className="step-desc">{s.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="divider" />
+
+      {/* ── TEAM & TESTIMONIALS ── */}
+      <div className="section" id="team">
+        <div className="section-inner">
+          <div className="sec-head"><span className="sec-label">Our Team</span><h2 className="sec-h2">Expert teachers, real results</h2></div>
+          <div className="team-grid">
+            {[
+              { name:"Oualid Lamti",    role:"Expert Manager",   color:"#f97316", bio:"ELOC founder · Certified CEFR A1–C2 coach", img:null },
+              { name:"Jessica Lahr",    role:"Teacher Coach",    color:"#6366f1", bio:"Native English speaker · Cambridge certified", img:null },
+              { name:"Nouhaila Moussia",role:"Expert Consultant",color:"#22c55e", bio:"Student success lead · B2–C2 specialist", img:null },
+            ].map((t,i) => (
+              <div className="team-card" key={i}>
+                <div style={{width:100,height:100,borderRadius:"50%",background:`${t.color}22`,border:`3px solid ${t.color}44`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:32,fontWeight:900,color:t.color}}>
+                  {t.name.split(" ").map(w=>w[0]).join("").slice(0,2)}
+                </div>
+                <div className="team-role" style={{color:t.color}}>{t.role}</div>
+                <div className="team-name">{t.name}</div>
+                <div className="team-bio">{t.bio}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,.35)"}}>What our students say</div></div>
+          <div className="testi-grid">
+            {[
+              { text:"Every lesson my English improves. By the end of each class I feel more confident — I never thought I would learn this language. ❤️", name:"Marie Petit",       role:"IT Director, Paris" },
+              { text:"One of the best English teachers I've known — an elegant, enjoyable method. I wish you great success, dear teacher.",               name:"Bouchera Lkhlage", role:"Pharmacist" },
+              { text:"A real educator with a refined style in explanation — without equal. Thanks to him I made great progress.",                          name:"Tarik Brahmi",      role:"Engineer" },
+            ].map((t,i) => (
+              <div className="testi-card" key={i}>
+                <div className="testi-q">"</div>
+                <div className="testi-text">{t.text}</div>
+                <div className="testi-stars">★★★★★</div>
+                <div className="testi-footer">
+                  <div className="testi-av">{t.name[0]}</div>
+                  <div><div className="testi-name">{t.name}</div><div className="testi-role-sm">{t.role}</div></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="divider" />
+
+      {/* ── PRICING ── */}
+      <div className="section" id="pricing">
+        <div className="section-inner">
+          <div className="sec-head"><span className="sec-label">Plans &amp; Pricing</span><h2 className="sec-h2">Best possible rates.</h2></div>
+          <div className="promo-bar">
+            <div className="promo-text">🎉 Register now and get <span className="promo-accent">40% OFF</span> your first month!</div>
+            <button className="btn-primary" onClick={onGoSignup}>Claim Offer →</button>
+          </div>
+          <div className="pricing-grid">
+            {[
+              { name:"Individual",   price:"600 DH", period:"/month",    featured:false, features:["3 sessions per week","1-on-1 with your teacher","Extra sessions available","24/7 Premium support"] },
+              { name:"Group",        price:"249 DH", period:"/month",    featured:true,  badge:"Most Popular", note:"Billed as 747 DH / 3 months", features:["Up to 5 students","3 sessions per week","Communication sessions","Cambridge courses"] },
+              { name:"Professional", price:"850 DH", period:"/month",    featured:false, features:["3 sessions per week","Business English","Professional communication","Practical sessions"] },
+            ].map((p,i) => (
+              <div className={`price-card${p.featured?" featured":""}`} key={i}>
+                {p.badge && <div className="price-badge">{p.badge}</div>}
+                <div className="price-name">{p.name}</div>
+                <div><span className="price-amount">{p.price}</span><span className="price-period">{p.period}</span></div>
+                {p.note && <div className="price-note">{p.note}</div>}
+                <div className="price-features">
+                  {p.features.map((f,j) => <div className="price-feat" key={j}><span className="price-check">✓</span>{f}</div>)}
+                </div>
+                <button className={`price-btn ${p.featured?"price-btn-primary":"price-btn-ghost"}`} onClick={onGoSignup}>Book Your Sessions</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="divider" />
+
+      {/* ── FAQ ── */}
+      <div className="section sec-alt" id="faq">
+        <div className="section-inner"><div className="faq-max">
+          <div className="sec-head"><span className="sec-label">FAQ</span><h2 className="sec-h2">Find answers instantly</h2></div>
+          {[
+            { q:"How do I register?",                                  a:"Simply click 'Register Now'. A team member will contact you via WhatsApp or email to schedule your free trial session on Google Meet." },
+            { q:"How do I attend classes?",                            a:"After confirming your registration, we will send you a schedule and a Google Meet link via WhatsApp or email before each session." },
+            { q:"How many sessions per month?",                        a:"We offer three sessions per week — approximately 12 per month. Sessions run Mon/Wed/Fri or Tue/Thu/Sat depending on your chosen time slot." },
+            { q:"Do I get a certificate?",                             a:"Yes! You receive a certificate upon completing the 6-month program. Progress is tracked every step of the way." },
+            { q:"Can I change my teacher?",                            a:"Absolutely. There is no obligation to stay with the same teacher. You can switch whenever you feel it is right for you." },
+          ].map((f,i) => (
+            <FaqItem key={i} q={f.q} a={f.a} />
           ))}
-        </div>
-
-        {/* Stats */}
-        <div className="lp-stats" style={{
-          padding: mob ? "24px 20px" : "36px 48px",
-          gap: mob ? 16 : 40,
-          borderRadius: mob ? 16 : 24
-        }}>
-          {[{val:"500+",label:"Students Enrolled"},{val:"30+",label:"Expert Teachers"},{val:"A1–C2",label:"All CEFR Levels"},{val:"4.9★",label:"Average Rating"}].map((s,i)=>(
-            <div key={i} style={{display:"contents"}}>
-              {i>0&&<div className="lp-stat-div" style={{height: mob ? 28 : 44}}/>}
-              <div className="lp-stat">
-                <div className="lp-stat-val" style={{fontSize: mob ? 20 : 30}}>{s.val}</div>
-                <div className="lp-stat-label">{s.label}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+        </div></div>
       </div>
 
-      <div className="lp-divider"/>
+      <div className="divider" />
 
-      {/* ━━━ WHY ELOC ━━━ */}
-      <div style={sec} id="lp-services">
-        <div style={wrap}>
-          <div style={{textAlign:"center",marginBottom: mob ? 36 : 56}}>
-            <span style={lbl}>Why Choose ELOC</span>
-            <h2 style={h2}>Everything you need to master English</h2>
-          </div>
-          <div style={gridWhy}>
-            {WHY.map((w,i)=>(
-              <div key={i} className="lp-card">
-                <div style={{fontSize:32,marginBottom:14}}>{w.icon}</div>
-                <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:10}}>{w.title}</div>
-                <div style={mut}>{w.desc}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="lp-divider"/>
-
-      {/* ━━━ HOW IT WORKS ━━━ */}
-      <div style={{...sec,background:"rgba(255,255,255,.015)"}}>
-        <div style={wrap}>
-          <div style={{textAlign:"center",marginBottom: mob ? 36 : 56}}>
-            <span style={lbl}>How ELOC Works</span>
-            <h2 style={h2}>3 steps to join your online sessions</h2>
-          </div>
-          <div style={grid3}>
-            {STEPS.map((s,i)=>(
-              <div key={i} style={{textAlign:"center",padding: mob ? "24px 16px" : "8px"}}>
-                <div style={{width:64,height:64,borderRadius:99,background:"linear-gradient(135deg,#f97316,#e05c00)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:24,fontWeight:900,color:"#fff",boxShadow:"0 8px 32px rgba(249,115,22,.4)"}}>
-                  {s.n}
-                </div>
-                <div style={{fontSize:24,marginBottom:12}}>{s.icon}</div>
-                <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:10}}>{s.title}</div>
-                <div style={{...mut,maxWidth:260,margin:"0 auto"}}>{s.desc}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{textAlign:"center",marginTop:48}}>
-            <button className="lp-btn-signup" onClick={onGoSignup} style={{fontSize:15,padding:"13px 36px"}}>🎓 Start for Free</button>
-          </div>
-        </div>
-      </div>
-
-      <div className="lp-divider"/>
-
-      {/* ━━━ SERVICES — responsive 3-col / stacked ━━━ */}
-      <div style={sec}>
-        <div style={wrap}>
-          <div style={{textAlign:"center",marginBottom: mob ? 36 : 56}}>
-            <span style={lbl}>Best Teaching Methods</span>
-            <h2 style={h2}>Online lessons with a dedicated tutor to boost your language &amp; communication skills</h2>
-          </div>
-
-          {tab ? (
-            /* Mobile/Tablet: simple 2-col or 1-col cards */
-            <div style={{display:"grid",gridTemplateColumns: mob ? "1fr" : "repeat(2,1fr)",gap:20}}>
-              {SERVICES.map((sv,i)=>(
-                <div key={i} className="lp-card" style={{display:"flex",gap:16,alignItems:"flex-start"}}>
-                  <div style={{width:52,height:52,borderRadius:14,background:["rgba(249,115,22,.12)","rgba(99,102,241,.1)","rgba(34,197,94,.1)","rgba(245,158,11,.1)"][i],display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>
-                    {sv.icon}
-                  </div>
-                  <div>
-                    <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:8}}>{sv.title}</div>
-                    <div style={{...mut,fontSize:13}}>{sv.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* Desktop: 3-col with center visual */
-            <div style={{display:"grid",gridTemplateColumns:"1fr 260px 1fr",gap:32,alignItems:"center"}}>
-              {/* LEFT */}
-              <div style={{display:"flex",flexDirection:"column",gap:36}}>
-                {SERVICES.slice(0,2).map((sv,i)=>(
-                  <div key={i} style={{display:"flex",gap:18,alignItems:"flex-start"}}>
-                    <div style={{width:56,height:56,borderRadius:16,background:i===0?"rgba(249,115,22,.12)":"rgba(99,102,241,.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0,boxShadow:i===0?"0 0 20px rgba(249,115,22,.2)":"0 0 20px rgba(99,102,241,.15)"}}>
-                      {sv.icon}
-                    </div>
-                    <div>
-                      <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:8}}>{sv.title}</div>
-                      <div style={{...mut,fontSize:13}}>{sv.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {/* CENTER visual */}
-              <div style={{borderRadius:24,overflow:"hidden",boxShadow:"0 32px 80px rgba(0,0,0,.7)",border:"1px solid rgba(255,255,255,.08)"}}>
-                <div style={{background:"linear-gradient(160deg,#0e1f32,#1a3350)",minHeight:380,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:"36px 24px",textAlign:"center"}}>
-                  <div style={{fontSize:60,filter:"drop-shadow(0 4px 16px rgba(0,0,0,.6))"}}>🇬🇧</div>
-                  <div style={{fontSize:44,marginTop:-12}}>📚</div>
-                  <div style={{background:"linear-gradient(135deg,#f97316,#e05c00)",borderRadius:16,padding:"14px 22px",marginTop:8,boxShadow:"0 6px 28px rgba(249,115,22,.5)"}}>
-                    <div style={{fontSize:10,fontWeight:900,letterSpacing:2.5,textTransform:"uppercase",color:"#fff",lineHeight:1.7}}>NOW OPEN<br/>FOR ENROLLMENT</div>
-                  </div>
-                  <div style={{background:"rgba(255,255,255,.07)",borderRadius:99,padding:"9px 22px",fontSize:13,fontWeight:700,color:"#fff",border:"1px solid rgba(255,255,255,.13)"}}>
-                    🎓 Free Trial Session
-                  </div>
-                </div>
-              </div>
-              {/* RIGHT */}
-              <div style={{display:"flex",flexDirection:"column",gap:36}}>
-                {SERVICES.slice(2,4).map((sv,i)=>(
-                  <div key={i} style={{display:"flex",gap:18,alignItems:"flex-start"}}>
-                    <div style={{width:56,height:56,borderRadius:16,background:i===0?"rgba(34,197,94,.1)":"rgba(245,158,11,.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>
-                      {sv.icon}
-                    </div>
-                    <div>
-                      <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:8}}>{sv.title}</div>
-                      <div style={{...mut,fontSize:13}}>{sv.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="lp-divider"/>
-
-      {/* ━━━ TEAM + TESTIMONIALS ━━━ */}
-      <div style={{...sec,background:"rgba(255,255,255,.015)"}} id="lp-team">
-        <div style={wrap}>
-          <div style={{textAlign:"center",marginBottom: mob ? 36 : 52}}>
-            <span style={lbl}>Expert Teachers</span>
-            <h2 style={h2}>Meet our team of experts</h2>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,marginTop:14}}>
-              {"★★★★★".split("").map((s,i)=><span key={i} style={{color:"#f59e0b",fontSize:18}}>{s}</span>)}
-              <span style={{fontSize:13,color:"rgba(255,255,255,.5)",marginLeft:8}}>4.9 out of 5</span>
-            </div>
-          </div>
-
-          <div style={{display:"grid",gridTemplateColumns: mob ? "1fr" : "repeat(3,1fr)",gap: mob ? 16 : 24,marginBottom: mob ? 40 : 64}}>
-            {TEAM.map((t,i)=>(
-              <div key={i} className="lp-card" style={{textAlign:"center",padding: mob ? "28px 16px" : "40px 24px"}}>
-                <div style={{width:76,height:76,borderRadius:99,background:`linear-gradient(135deg,${t.color},${t.color}88)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:900,color:"#fff",margin:"0 auto 18px",boxShadow:`0 8px 28px ${t.color}44`}}>
-                  {t.initials}
-                </div>
-                <div style={{fontSize:10,color:t.color,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>{t.role}</div>
-                <div style={{fontSize:17,fontWeight:900,color:"#fff"}}>{t.name}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Testimonials */}
-          <div style={{textAlign:"center",marginBottom:32}}>
-            <div style={{fontSize:14,fontWeight:700,color:"rgba(255,255,255,.45)"}}>Why people trust ELOC</div>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns: mob ? "1fr" : tab ? "repeat(2,1fr)" : "repeat(3,1fr)",gap: mob ? 16 : 20}}>
-            {testimonials.map((t,i)=>(
-              <div key={i} className="lp-card" style={{cursor:"pointer",borderColor:activeTesti===i?"rgba(249,115,22,.4)":"",boxShadow:activeTesti===i?"0 12px 40px rgba(249,115,22,.15)":"",transform:activeTesti===i?"translateY(-4px)":""}}
-                onClick={()=>setActiveTesti(i)}>
-                <div style={{fontSize:32,color:"rgba(249,115,22,.4)",lineHeight:1,marginBottom:12}}>"</div>
-                <div style={{...mut,fontStyle:"italic",marginBottom:18,fontSize:13,lineHeight:1.8}}>{t.text}</div>
-                <div style={{display:"flex",gap:3,marginBottom:12}}>
-                  {"★★★★★".split("").map((_,j)=><span key={j} style={{color:"#f59e0b",fontSize:13}}>★</span>)}
-                </div>
-                <div style={{borderTop:"1px solid rgba(255,255,255,.07)",paddingTop:14,display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:36,height:36,borderRadius:99,background:"linear-gradient(135deg,#f97316,#e05c00)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",flexShrink:0}}>
-                    {t.name[0]}
-                  </div>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:800,color:"#fff"}}>{t.name}</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:2}}>{t.role}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="lp-divider"/>
-
-      {/* ━━━ PRICING ━━━ */}
-      <div style={sec} id="lp-pricing">
-        <div style={wrap}>
-          <div style={{textAlign:"center",marginBottom:16}}>
-            <span style={lbl}>Plans &amp; Pricing</span>
-            <h2 style={h2}>Best possible rates.</h2>
-            <p style={{...mut,marginTop:12,textAlign:"center"}}>No credit card required to start.</p>
-          </div>
-
-          {/* 40% off banner */}
-          <div style={{background:"linear-gradient(135deg,rgba(249,115,22,.18),rgba(249,115,22,.06))",border:"1px solid rgba(249,115,22,.3)",borderRadius:16,padding: mob ? "18px 20px" : "18px 28px",display:"flex",flexDirection: mob ? "column" : "row",alignItems: mob ? "flex-start" : "center",justifyContent:"space-between",gap:12,margin: "28px 0 40px"}}>
-            <div style={{fontSize: mob ? 14 : 16,fontWeight:800,color:"#fff"}}>🎉 Register now and get <span style={{color:"#f97316"}}>40% OFF</span> your first month!</div>
-            <button className="lp-btn-signup" onClick={onGoSignup} style={{padding:"11px 24px",fontSize:13,flexShrink:0}}>Claim Offer →</button>
-          </div>
-
-          <div style={grid3}>
-            {PLANS.map((p,i)=>(
-              <div key={i} className={`lp-price-card${p.featured?" featured":""}`}>
-                {p.featured&&(
-                  <div style={{position:"absolute",top:16,right:16,background:"#f97316",color:"#fff",fontSize:9,fontWeight:900,letterSpacing:1.5,textTransform:"uppercase",padding:"4px 10px",borderRadius:99}}>Most Popular</div>
-                )}
-                <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,.5)",letterSpacing:1,textTransform:"uppercase",marginBottom:16}}>{p.name}</div>
-                <div style={{marginBottom:20}}>
-                  <span style={{fontSize: mob ? 32 : 40,fontWeight:900,color:"#fff",letterSpacing:-2}}>{p.price}</span>
-                  <span style={{fontSize:13,color:"rgba(255,255,255,.4)",marginLeft:6}}>{p.period}</span>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:28}}>
-                  {p.features.map((f,j)=>(
-                    <div key={j} style={{display:"flex",alignItems:"center",gap:10,fontSize:13,color:"rgba(255,255,255,.7)"}}>
-                      <span style={{color:"#22c55e",fontWeight:800,flexShrink:0}}>✓</span>{f}
-                    </div>
-                  ))}
-                </div>
-                <button className={p.featured?"lp-btn-signup":"lp-btn-login"} onClick={onGoSignup}
-                  style={{width:"100%",justifyContent:"center",padding:"12px 0",fontSize:13}}>
-                  Book Your Sessions
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="lp-divider"/>
-
-      {/* ━━━ FAQ ━━━ */}
-      <div style={{...sec,background:"rgba(255,255,255,.015)"}} id="lp-faq">
-        <div style={{...wrap,maxWidth:760}}>
-          <div style={{textAlign:"center",marginBottom: mob ? 36 : 52}}>
-            <span style={lbl}>FAQ</span>
-            <h2 style={h2}>Find answers instantly</h2>
-          </div>
-          {faqs.map((f,i)=>(
-            <div key={i} className="lp-faq-item" onClick={()=>setFaqOpen(faqOpen===i?null:i)}>
-              <div className="lp-faq-q" style={{fontSize: mob ? 14 : 15}}>
-                <span>{f.q}</span>
-                <span style={{fontSize:22,color:"#f97316",flexShrink:0,transition:"transform .25s",display:"inline-block",transform:faqOpen===i?"rotate(45deg)":""}}>+</span>
-              </div>
-              {faqOpen===i&&<div className="lp-faq-a open">{f.a}</div>}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="lp-divider"/>
-
-      {/* ━━━ CONTACT ━━━ */}
-      <div style={sec}>
-        <div style={wrap}>
-          <div style={grid2}>
-            {/* Left */}
+      {/* ── CONTACT ── */}
+      <div className="section">
+        <div className="section-inner">
+          <div className="contact-grid">
             <div>
-              <span style={lbl}>Contact Us</span>
-              <h2 style={h2}>We'll focus on your goals, background &amp; needs.</h2>
-              <p style={{...mut,marginTop:16,marginBottom:32}}>Our team is ready to help you choose the right programme and get started with a free trial session — no commitment, no payment required.</p>
-              <button className="lp-btn-signup" onClick={onGoSignup} style={{fontSize:15,padding:"14px 36px",marginBottom:28,width: mob ? "100%" : undefined,justifyContent:"center"}}>
-                🎓 Book Your Free Session
-              </button>
-              <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-                <a href={whatsapp} target="_blank" rel="noreferrer"
-                  style={{display:"flex",alignItems:"center",gap:9,background:"rgba(37,211,102,.1)",border:"1px solid rgba(37,211,102,.25)",borderRadius:12,padding:"11px 18px",textDecoration:"none",color:"#fff",fontSize:13,fontWeight:700}}>
-                  <span style={{fontSize:18}}>💬</span> WhatsApp Us
-                </a>
-                <a href={`tel:${phone}`}
-                  style={{display:"flex",alignItems:"center",gap:9,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"11px 18px",textDecoration:"none",color:"#fff",fontSize:13,fontWeight:700}}>
-                  <span style={{fontSize:18}}>📞</span> {phone}
-                </a>
+              <span className="sec-label">Contact Us</span>
+              <h2 className="sec-h2" style={{marginBottom:14}}>We'll focus on your goals, background &amp; needs.</h2>
+              <p style={{color:"rgba(255,255,255,.45)",fontSize:14,lineHeight:1.8,marginBottom:28}}>Our team is ready to help you choose the right programme and get started with a free trial — no commitment, no payment required.</p>
+              <button className="btn-lg btn-lg-primary" style={{marginBottom:20,display:"inline-flex"}} onClick={onGoSignup}>🎓 Book Your Free Session</button>
+              <div className="contact-btns">
+                <a href={`https://wa.me/${WA_NUMBER}`} className="wa-btn" target="_blank" rel="noreferrer">💬 WhatsApp Us</a>
+                <a href="tel:0604007232" className="tel-btn">📞 +212 6 04 00 72 32</a>
               </div>
             </div>
-
-            {/* Right */}
-            <div style={{display:"flex",flexDirection:"column",gap:16}}>
-              {[
-                { icon:"📍", title:"Address", lines:["Bureau 19 Jawhara","Dcheira El Jihadia 80000"] },
-                { icon:"📞", title:"Phone",   lines:["Home: 06 04 00 72 32","Office: 06 20 47 63 55"] },
-                { icon:"✉️", title:"Email",   lines:["contact@elocinternational.com","support@elocinternational.com"] },
-              ].map((ct,i)=>(
-                <div key={i} style={{display:"flex",gap:16,alignItems:"flex-start",padding:"18px 20px",background:"rgba(255,255,255,.03)",borderRadius:14,border:"1px solid rgba(255,255,255,.07)"}}>
-                  <div style={{fontSize:24,flexShrink:0}}>{ct.icon}</div>
-                  <div>
-                    <div style={{fontSize:11,fontWeight:700,color:"#f97316",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>{ct.title}</div>
-                    {ct.lines.map((l,j)=><div key={j} style={{fontSize:13,color:"rgba(255,255,255,.55)",lineHeight:1.75}}>{l}</div>)}
-                  </div>
-                </div>
-              ))}
+            <div>
+              <div className="contact-info-row"><div className="contact-icon">📍</div><div><div className="contact-title">Address</div><div className="contact-line">Bureau 32 Jawhara<br />Dcheira El Jihadia 80000</div></div></div>
+              <div className="contact-info-row"><div className="contact-icon">📞</div><div><div className="contact-title">Phone</div><div className="contact-line">Home: 06 04 00 72 32<br />Office: 06 25 35 15 53</div></div></div>
+              <div className="contact-info-row"><div className="contact-icon">✉️</div><div><div className="contact-title">Email</div><div className="contact-line"><a href="mailto:Oualidlamti@eloc.pro" style={{color:"inherit",textDecoration:"none"}}>Oualidlamti@eloc.pro</a></div></div></div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ━━━ FOOTER ━━━ */}
-      <footer className="lp-footer">
-        <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
-          <div className="lp-logo-box">
-            <div className="lp-logo-badge" style={{width:32,height:32}}>
-              <img src={LOGO} alt="ELOC" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-            </div>
-            <div style={{fontSize:13,fontWeight:900,color:"#fff"}}>ELOC International</div>
-          </div>
-          <div style={{fontSize:11,color:"rgba(255,255,255,.3)"}}>2025 © Eloc International · Excellence in Language &amp; Online Courses</div>
-          <div style={{display:"flex",gap:16}}>
-            <a href={whatsapp} target="_blank" rel="noreferrer" style={{fontSize:12,color:"rgba(255,255,255,.4)",textDecoration:"none"}}>WhatsApp</a>
-            <a href="mailto:contact@elocinternational.com" style={{fontSize:12,color:"rgba(255,255,255,.4)",textDecoration:"none"}}>Email</a>
-            <a href="https://www.elocinternational.com" target="_blank" rel="noreferrer" style={{fontSize:12,color:"rgba(255,255,255,.4)",textDecoration:"none"}}>Website</a>
-          </div>
+      {/* ── FOOTER ── */}
+      <footer className="footer">
+        <div className="logo-box">
+          <div className="logo-badge" style={{width:28,height:28}}><img src={LOGO} alt="ELOC" /></div>
+          <div style={{fontSize:13,fontWeight:800,color:"#fff"}}>ELOC <span style={{color:"#f97316"}}>Professional</span></div>
+        </div>
+        <div className="footer-copy">© 2025 ELOC Professional. All rights reserved.</div>
+        <div className="footer-links">
+          <a href="#why">About</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#faq">FAQ</a>
         </div>
       </footer>
+
+      </div>{/* end .lp */}
+
+      {/* ── WHATSAPP FLOAT ── */}
+      <a href={`https://wa.me/${WA_NUMBER}`} target="_blank" rel="noreferrer" className="wa-float" title="WhatsApp">
+        <div className="wa-ring" />
+        <div className="wa-ring2" />
+        <button className="wa-float-btn" aria-label="WhatsApp">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{width:28,height:28,fill:"#fff",display:"block"}}>
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+          </svg>
+        </button>
+        <span className="wa-tooltip">Chat with us</span>
+      </a>
+    </>
+  );
+}
+
+function FaqItem({ q, a }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="faq-item">
+      <div className="faq-q" onClick={() => setOpen(o => !o)} style={{cursor:"pointer"}}>
+        <span>{q}</span><span className="faq-plus">{open ? "−" : "+"}</span>
+      </div>
+      {open && <div className="faq-a">{a}</div>}
     </div>
   );
 }
 
-// ─── STUDENT SIGN UP PAGE ──────────────────────────────────────────────────────
+
 function StudentSignupPage({ onBack, onSuccess, data, setData }) {
   const [step, setStep]   = useState(1);
   const [form, setForm]   = useState({ firstName:"", lastName:"", email:"", phone:"", age:"", city:"", level:"A2", password:"", confirmPassword:"" });

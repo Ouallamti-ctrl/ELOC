@@ -21,6 +21,11 @@ const userSchema = new mongoose.Schema({
   groupId:          { type: mongoose.Schema.Types.ObjectId, ref: 'Group', index: true },
   registrationDate: { type: String },
   paymentStatus:    { type: String, enum: ['paid','pending','overdue'], default: 'pending' },
+
+  // Trial booking
+  trialDate:          { type: String, default: null },
+  trialTime:          { type: String, default: null },
+  registrationStatus: { type: String, enum: ['pending','confirmed','rejected'], default: null },
 }, { timestamps: true });
 
 // Hash password before saving

@@ -81,10 +81,12 @@ router.put('/:id', async (req, res) => {
     // Whitelist fields to prevent mass assignment / role escalation
     const { name, email, phone, age, city, level, groupId,
             commission, salaryType, status, avatar,
-            registrationDate, paymentStatus, notes } = req.body;
+            registrationDate, paymentStatus, notes,
+            trialDate, trialTime, registrationStatus } = req.body;
     const allowed = { name, email, phone, age, city, level, groupId,
                       commission, salaryType, status, avatar,
-                      registrationDate, paymentStatus, notes };
+                      registrationDate, paymentStatus, notes,
+                      trialDate, trialTime, registrationStatus };
 
     // Only admins can change roles
     if (req.user.role === 'admin' && req.body.role) allowed.role = req.body.role;

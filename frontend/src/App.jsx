@@ -4595,6 +4595,12 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
   const [fieldErr, setFieldErr] = useState({});
   const [showPw, setShowPw] = useState(false);
   const [done,   setDone] = useState(null);
+  const [curMonth, setCurMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [selDate, setSelDate]   = useState(null);
+  const [selSlot, setSelSlot]   = useState(null);
+  const [booking, setBooking]   = useState(false);
+  const [bookDone, setBookDone] = useState(false);
+  const TIME_SLOTS = ["09:00","10:00","11:00","14:00","16:00","18:00"];
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]:v })); setFieldErr(e => ({ ...e, [k]:"" })); };
 
@@ -4648,8 +4654,10 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
       saveToken(token);
       // Build done with ONLY safe string fields - no object spreading that could leak
       const fullName = form.firstName.trim() + " " + form.lastName.trim();
-      setDone({
-        id:               user?.id || user?._id?.toString() || '',
+      const rawId = user?.id || user?._id?.toString() || user?._id || '';
+      const cleanUser = {
+        id:               String(rawId),
+        _id:              String(rawId),
         name:             String(user?.name || fullName),
         email:            String(user?.email || form.email),
         role:             'student',
@@ -4657,7 +4665,9 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
         registrationDate: String(user?.registrationDate || new Date().toISOString().split('T')[0]),
         avatar:           String(user?.avatar || ''),
         password:         form.password,
-      });
+      };
+      console.log("Registered user ID:", cleanUser.id, "Raw user:", user);
+      setDone(cleanUser);
       setStep(3);
     } catch (e) {
       setErr(e.message || "Registration failed");
@@ -4669,7 +4679,7 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
   const FErr = ({ k }) => fieldErr[k] ? <div style={{ fontSize:11, color:"var(--red)", marginTop:4, fontWeight:600 }}>⚠ {fieldErr[k]}</div> : null;
 
   const StepBar = () => {
-    const labels = ["Personal Info","Account Setup","Done"];
+    const labels = ["Personal Info","Account Setup","Book Trial"];
     return (
       <div className="su-step-bar">
         {labels.map((label, i) => {
@@ -4701,30 +4711,127 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
       <div className="su-body">
         <div className="su-card" style={{ animation:"authFadeUp .5s both" }}>
           {step === 3 && done && (
-            <div className="su-success">
-              <div className="su-success-icon">🎓</div>
-              <h2 style={{ fontSize:22, fontWeight:900, letterSpacing:"-.4px", marginBottom:8 }}>Welcome to ELOC, {done.name.split(" ")[0]}!</h2>
-              <p style={{ fontSize:13, color:"var(--text3)", lineHeight:1.7, marginBottom:20 }}>Your account is created. An admin will assign you to a group and confirm your schedule. Save your login details below.</p>
-              <div className="su-success-creds">
-                <div style={{ fontSize:11, fontWeight:700, color:"var(--accent2)", textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>🔑 Your Login Details</div>
-                {[["Name",done.name],["Email",done.email],["Password",done.password],["Level",done.level],["Joined",done.registrationDate]].map(([l,v],i)=>(
-                  <div key={i} style={{ display:"flex", gap:12, padding:"7px 0", borderBottom:i<4?"1px solid var(--border)":"none" }}>
-                    <span style={{ fontSize:12, color:"var(--text3)", width:72, flexShrink:0 }}>{l}</span>
-                    <span style={{ fontSize:13, fontWeight:600, fontFamily:"var(--mono)" }}>{v}</span>
+            <div style={{animation:"authFadeUp .4s both"}}>
+              {bookDone ? (
+                <div style={{textAlign:"center",padding:"20px 0"}}>
+                  <div style={{fontSize:52,marginBottom:12}}>🎉</div>
+                  <h2 style={{fontSize:20,fontWeight:900,color:"var(--text1)",marginBottom:8}}>Trial Session Booked!</h2>
+                  <div style={{fontSize:13,color:"var(--text3)",marginBottom:4}}>
+                    {selDate && selDate.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
                   </div>
-                ))}
-              </div>
-              <div style={{ display:"flex", gap:10 }}>
-                <button className="btn btn-se w100" style={{ justifyContent:"center" }} onClick={onBack}>Back to Home</button>
-                <button className="btn btn-pr w100" style={{ justifyContent:"center" }} onClick={() => onSuccess && onSuccess(done)}>Go to Dashboard →</button>
-              </div>
+                  <div style={{fontSize:22,fontWeight:900,color:"var(--accent)",marginBottom:16}}>{selSlot}</div>
+                  <p style={{fontSize:13,color:"var(--text3)",lineHeight:1.7,marginBottom:24}}>We will contact you via WhatsApp to confirm your session.</p>
+                  <button className="btn btn-pr w100" style={{justifyContent:"center"}} onClick={()=>onSuccess&&onSuccess(done)}>Go to My Dashboard →</button>
+                </div>
+              ) : (
+                <>
+                  <div style={{textAlign:"center",marginBottom:20}}>
+                    <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(249,115,22,.12)",border:"1px solid rgba(249,115,22,.3)",borderRadius:99,padding:"4px 14px",fontSize:11,fontWeight:700,color:"var(--accent)",marginBottom:12,letterSpacing:1,textTransform:"uppercase"}}>🎓 Step 3 — Book Trial</div>
+                    <div style={{fontSize:18,fontWeight:900,color:"var(--text1)",marginBottom:4}}>Choose Your Trial Session</div>
+                    <div style={{fontSize:12,color:"var(--text3)"}}>Account created! Now pick a date and time.</div>
+                  </div>
+
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--accent)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Select a date</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                    <button onClick={()=>setCurMonth(d=>{const n=new Date(d);n.setMonth(n.getMonth()-1);return n;})}
+                      style={{width:32,height:32,borderRadius:8,background:"var(--bg3)",border:"1px solid var(--border)",color:"var(--text1)",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+                    <div style={{fontSize:14,fontWeight:700,color:"var(--text1)"}}>{curMonth.toLocaleString("default",{month:"long",year:"numeric"})}</div>
+                    <button onClick={()=>setCurMonth(d=>{const n=new Date(d);n.setMonth(n.getMonth()+1);return n;})}
+                      style={{width:32,height:32,borderRadius:8,background:"var(--bg3)",border:"1px solid var(--border)",color:"var(--text1)",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+                  </div>
+
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:16}}>
+                    {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=>(
+                      <div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text3)",padding:"3px 0",textTransform:"uppercase"}}>{d}</div>
+                    ))}
+                    {(()=>{
+                      const y=curMonth.getFullYear(),m=curMonth.getMonth();
+                      const first=new Date(y,m,1).getDay();
+                      const days=new Date(y,m+1,0).getDate();
+                      const today=new Date();today.setHours(0,0,0,0);
+                      const cells=[];
+                      for(let i=0;i<first;i++) cells.push(<div key={"e"+i}/>);
+                      for(let d=1;d<=days;d++){
+                        const date=new Date(y,m,d);
+                        const past=date<today;
+                        const isToday=date.toDateString()===today.toDateString();
+                        const sel=selDate&&date.toDateString()===selDate.toDateString();
+                        cells.push(
+                          <div key={d} onClick={()=>{if(!past){setSelDate(date);setSelSlot(null);}}}
+                            style={{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,fontSize:12,fontWeight:600,
+                              cursor:past?"not-allowed":"pointer",
+                              color:past?"var(--text3)":sel?"#fff":"var(--text1)",
+                              background:sel?"var(--accent)":"transparent",
+                              border:isToday&&!sel?"1px solid var(--accent)":"1px solid transparent",
+                              transition:"all .15s",
+                              opacity:past?0.3:1,
+                            }}>{d}</div>
+                        );
+                      }
+                      return cells;
+                    })()}
+                  </div>
+
+                  {selDate && (
+                    <>
+                      <div style={{fontSize:11,fontWeight:700,color:"var(--accent)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>
+                        Available slots — {selDate.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
+                        {TIME_SLOTS.map(slot=>{
+                          const sel=selSlot===slot;
+                          return (
+                            <div key={slot} onClick={()=>setSelSlot(slot)}
+                              style={{padding:"11px 8px",borderRadius:10,textAlign:"center",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all .15s",
+                                background:sel?"var(--accent)":"var(--bg3)",
+                                color:sel?"#fff":"var(--text2)",
+                                border:sel?"1px solid transparent":"1px solid var(--border)",
+                              }}>{slot}</div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {selDate && selSlot && (
+                    <div style={{background:"rgba(249,115,22,.07)",border:"1px solid rgba(249,115,22,.2)",borderRadius:12,padding:14,marginBottom:16}}>
+                      {[["Student",done.name],["Date",selDate.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})],["Time",selSlot]].map(([l,v],i,a)=>(
+                        <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:i<a.length-1?"1px solid var(--border)":"none",fontSize:13}}>
+                          <span style={{color:"var(--text3)"}}>{l}</span>
+                          <span style={{fontWeight:700,color:"var(--text1)"}}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{display:"flex",gap:10,marginTop:8}}>
+                    <button className="btn btn-pr" style={{flex:1,justifyContent:"center",opacity:(!selDate||!selSlot||booking)?0.5:1,cursor:(!selDate||!selSlot||booking)?"not-allowed":"pointer"}}
+                      disabled={!selDate||!selSlot||booking}
+                      onClick={async()=>{
+                        const userId = done?.id || done?._id?.toString() || '';
+                        if(!selDate||!selSlot||!userId) { console.error("No user ID found:", done); return; }
+                        setBooking(true);
+                        try {
+                          const ds=selDate.getFullYear()+"-"+String(selDate.getMonth()+1).padStart(2,"0")+"-"+String(selDate.getDate()).padStart(2,"0");
+                          await api.users.update(userId,{trialDate:ds,trialTime:selSlot,registrationStatus:"pending"});
+                          setData(d=>({...d,users:d.users.map(u=>(u.id===userId||u._id===userId)?{...u,trialDate:ds,trialTime:selSlot,registrationStatus:"pending"}:u)}));
+                          setBookDone(true);
+                        } catch(e){console.error("Booking failed:",e);}
+                        finally{setBooking(false);}
+                      }}>
+                      {booking?"Booking...":"✅ Confirm Trial Session"}
+                    </button>
+                    <button className="btn btn-se" style={{justifyContent:"center"}} onClick={()=>onSuccess&&onSuccess(done)}>Skip →</button>
+                  </div>
+                </>
+              )}
             </div>
           )}
           {step < 3 && (
             <>
               <div style={{ textAlign:"center", marginBottom:28 }}>
                 <div style={{ fontSize:22, fontWeight:900, letterSpacing:"-.5px", marginBottom:4 }}>Student Registration</div>
-                <div style={{ fontSize:13, color:"var(--text3)" }}>Create your ELOC account — Step {step} of 2</div>
+                <div style={{ fontSize:13, color:"var(--text3)" }}>Create your ELOC account — Step {step} of 3</div>
               </div>
               <StepBar />
               {step === 1 && (
@@ -4792,6 +4899,145 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── REGISTRATIONS PAGE ───────────────────────────────────────────────────────
+function RegistrationsPage({ data, setData }) {
+  const [filter, setFilter] = React.useState("all");
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    setLoading(true);
+    api.users.list()
+      .then(users => {
+        const normalized = (users||[]).map(u => {
+          const flat = { ...u, id: u._id?.toString() || u.id };
+          delete flat._id;
+          return flat;
+        });
+        setData(d => ({ ...d, users: normalized }));
+      })
+      .catch(e => console.error("Failed to reload users:", e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const registrations = (data.users||[])
+    .filter(u => u.role==="student" && (u.trialDate || u.registrationStatus==="pending"))
+    .sort((a,b)=>(b.registrationDate||"").localeCompare(a.registrationDate||""));
+
+  const filtered = filter==="all" ? registrations : registrations.filter(u=>(u.registrationStatus||"pending")===filter);
+
+  const updateStatus = async (userId, status) => {
+    try {
+      await api.users.update(userId, { registrationStatus: status });
+      setData(d => ({ ...d, users: d.users.map(u => u.id===userId ? {...u, registrationStatus:status} : u) }));
+    } catch(e) { console.error(e); }
+  };
+
+  const SC = { pending:"#f59e0b", confirmed:"#22c55e", rejected:"#ef4444" };
+  const SL = { pending:"⏳ Pending", confirmed:"✅ Confirmed", rejected:"❌ Rejected" };
+
+  return (
+    <div>
+      <div className="ph">
+        <div>
+          <div className="ph-title">Trial Registrations 📋</div>
+          <div className="ph-sub">{registrations.length} student{registrations.length!==1?"s":""} booked a trial session</div>
+        </div>
+      </div>
+
+      <div className="g4 mb16" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
+        {[
+          {label:"Total",value:registrations.length,color:"#f97316"},
+          {label:"Pending",value:registrations.filter(u=>(u.registrationStatus||"pending")==="pending").length,color:"#f59e0b"},
+          {label:"Confirmed",value:registrations.filter(u=>u.registrationStatus==="confirmed").length,color:"#22c55e"},
+        ].map((s,i)=>(
+          <div key={i} className="card stat" style={{borderColor:`${s.color}20`}}>
+            <div className="stat-glow" style={{background:s.color}}/>
+            <div className="stat-label">{s.label}</div>
+            <div className="stat-val" style={{color:s.color}}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        {["all","pending","confirmed","rejected"].map(f=>(
+          <button key={f} onClick={()=>setFilter(f)} className={filter===f?"btn btn-pr":"btn btn-se"} style={{padding:"6px 16px",fontSize:12,textTransform:"capitalize"}}>
+            {f==="all"?"All":SL[f]}
+          </button>
+        ))}
+      </div>
+
+      {loading && (
+        <div className="card" style={{textAlign:"center",padding:32,color:"var(--text3)"}}>
+          <div style={{fontSize:13}}>Loading registrations...</div>
+        </div>
+      )}
+
+      {!loading && filtered.length===0 && (
+        <div className="card" style={{textAlign:"center",padding:48,color:"var(--text3)"}}>
+          <div style={{fontSize:48,marginBottom:12}}>📭</div>
+          <div style={{fontWeight:700}}>No registrations yet</div>
+          <div style={{fontSize:13,marginTop:8}}>New trial bookings will appear here</div>
+        </div>
+      )}
+
+      {!loading && filtered.length>0 && (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {filtered.map(u=>{
+            const status = u.registrationStatus||"pending";
+            return (
+              <div key={u.id} className="card" style={{borderLeft:`4px solid ${SC[status]}`,padding:"16px 20px"}}>
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",gap:14,alignItems:"center"}}>
+                    <div style={{width:46,height:46,borderRadius:"50%",background:"rgba(249,115,22,.15)",border:"2px solid rgba(249,115,22,.3)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:16,color:"#f97316",flexShrink:0}}>
+                      {(u.name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{fontWeight:800,fontSize:15,marginBottom:3}}>{u.name}</div>
+                      <div style={{fontSize:12,color:"var(--text3)"}}>📧 {u.email}</div>
+                      <div style={{fontSize:12,color:"var(--text3)"}}>📞 {u.phone||"—"} · 🏙 {u.city||"—"} · 📚 Level {u.level||"—"}</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,color:SC[status],background:`${SC[status]}18`,padding:"4px 14px",borderRadius:99,border:`1px solid ${SC[status]}40`,whiteSpace:"nowrap"}}>
+                    {SL[status]}
+                  </div>
+                </div>
+
+                <div style={{marginTop:14,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10}}>
+                  {[
+                    {icon:"📅",label:"Trial Date",value:u.trialDate||"—"},
+                    {icon:"🕐",label:"Trial Time",value:u.trialTime||"—"},
+                    {icon:"📚",label:"Level",value:u.level||"—"},
+                    {icon:"🗓",label:"Registered",value:u.registrationDate||"—"},
+                  ].map((item,i)=>(
+                    <div key={i} style={{background:"var(--bg3)",borderRadius:10,padding:"10px 14px",border:"1px solid var(--border)"}}>
+                      <div style={{fontSize:11,color:"var(--text3)",marginBottom:4}}>{item.icon} {item.label}</div>
+                      <div style={{fontSize:13,fontWeight:700}}>{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {status==="pending" && (
+                  <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+                    <button className="btn btn-pr" style={{fontSize:12,padding:"7px 20px"}} onClick={()=>updateStatus(u.id,"confirmed")}>✅ Confirm Trial</button>
+                    <button className="btn btn-se" style={{fontSize:12,padding:"7px 20px",color:"#ef4444",borderColor:"rgba(239,68,68,.4)"}} onClick={()=>updateStatus(u.id,"rejected")}>❌ Reject</button>
+                    <a href={"https://wa.me/"+((u.phone||"").replace(/\D/g,""))} target="_blank" rel="noreferrer"
+                      style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,padding:"7px 20px",borderRadius:8,background:"rgba(37,211,102,.1)",border:"1px solid rgba(37,211,102,.25)",color:"#25d366",textDecoration:"none"}}>
+                      💬 WhatsApp
+                    </a>
+                  </div>
+                )}
+                {status!=="pending" && (
+                  <button className="btn btn-se" style={{fontSize:11,padding:"5px 14px",marginTop:10,color:"var(--text3)"}} onClick={()=>updateStatus(u.id,"pending")}>↩ Reset to Pending</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -4889,7 +5135,7 @@ function Sidebar({ user, active, onNav, open }) {
   const navByRole = {
     admin: [
       { sec: "Overview", items: [{ id: "dashboard", icon: "⬛", label: "Dashboard" }, { id: "analytics", icon: "📊", label: "Analytics", perm: "analytics" }] },
-      { sec: "People", items: [{ id: "students", icon: "👨‍🎓", label: "Students", perm: "students" }, { id: "teachers", icon: "👨‍🏫", label: "Teachers", perm: "teachers" }, { id: "groups", icon: "👥", label: "Groups", perm: "groups" }] },
+      { sec: "People", items: [{ id: "registrations", icon: "📋", label: "Registrations" }, { id: "students", icon: "👨‍🎓", label: "Students", perm: "students" }, { id: "teachers", icon: "👨‍🏫", label: "Teachers", perm: "teachers" }, { id: "groups", icon: "👥", label: "Groups", perm: "groups" }] },
       { sec: "Curriculum", items: [{ id: "books", icon: "📚", label: "Books & Curriculum", perm: "books" }] },
       { sec: "Operations", items: [{ id: "sessions", icon: "📅", label: "Sessions", perm: "sessions" }, { id: "attendance", icon: "✅", label: "Attendance", perm: "students" }, { id: "payments", icon: "💳", label: "Payments", perm: "payments" }] },
       { sec: "Admin", items: [{ id: "admin_users", icon: "🔐", label: "Admin Users" }] },
@@ -10457,12 +10703,13 @@ export default function App() {
     setAuthScreen("landing");
   };
 
-  const titleMap = { dashboard: "Dashboard", analytics: "Analytics", students: "Students", teachers: "Teachers", groups: "Groups", books: "Books & Curriculum", sessions: "Sessions", payments: "Payments", earnings: "Earnings", classes: "My Classes", attendance: "Attendance", materials: "My Materials", games: "🎮 Games", admin_users: "🔐 Admin Users", admin_attendance: "✅ Attendance Center" };
+  const titleMap = { dashboard: "Dashboard", registrations: "📋 Registrations", analytics: "Analytics", students: "Students", teachers: "Teachers", groups: "Groups", books: "Books & Curriculum", sessions: "Sessions", payments: "Payments", earnings: "Earnings", classes: "My Classes", attendance: "Attendance", materials: "My Materials", games: "🎮 Games", admin_users: "🔐 Admin Users", admin_attendance: "✅ Attendance Center" };
 
   const renderPage = () => {
     if (user.role === "admin") {
       const pages = {
         dashboard: <AdminDashboard data={data} user={user} />,
+        registrations: <RegistrationsPage data={data} setData={setData} />,
         analytics: <Analytics data={data} />,
         students: <StudentsPage data={data} setData={setData} />,
         teachers: <TeachersPage data={data} setData={setData} />,

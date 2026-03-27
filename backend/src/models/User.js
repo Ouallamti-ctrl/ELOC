@@ -26,6 +26,13 @@ const userSchema = new mongoose.Schema({
   trialDate:          { type: String, default: null },
   trialTime:          { type: String, default: null },
   registrationStatus: { type: String, enum: ['pending','confirmed','rejected'], default: null },
+
+  // Admin permissions — only used when role === 'admin'
+  // undefined = Super Admin (full access), [] = no access, ['students','payments'] = restricted
+  permissions: { type: [String], default: undefined },
+
+  // Extra fields stored by the app
+  notes: { type: String },
 }, { timestamps: true });
 
 // Hash password before saving

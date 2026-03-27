@@ -282,6 +282,299 @@ function useToasts() {
   return toasts;
 }
 
+// ─── NOTIFICATION SYSTEM ───────────────────────────────────────────────────────
+function useNotifications(user, data) {
+  const [notifications, setNotifications] = useState([]);
+  const [read, setRead] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('eloc_notif_read') || '[]')); } catch { return new Set(); }
+  });
+
+  useEffect(() => {
+    if (!user || !data) return;
+    const notifs = [];
+    const today = new Date().toISOString().split("T")[0];
+    const nowMs = Date.now();
+
+    // Sessions starting within 60 min
+    data.sessions?.forEach(s => {
+      if (s.isCancelled || s.status !== "upcoming") return;
+      const isRelevant = user.role === "admin" ||
+        (user.role === "teacher" && String(s.teacherId) === String(user.id)) ||
+        (user.role === "student" && String(s.groupId) === String(user.groupId));
+      if (!isRelevant) return;
+      const mins = minutesUntilSession(s.date, s.startTime || s.time || "00:00");
+      if (mins >= 0 && mins <= 60) {
+        notifs.push({ id: `sess-soon-${s.id}`, icon: "🔔", type: "info", title: "Session Starting Soon", body: `${s.title} starts in ${mins} min`, ts: nowMs });
+      }
+    });
+
+    // Overdue payments (admin only)
+    if (user.role === "admin") {
+      const overdueCount = data.payments?.filter(p => p.status === "overdue").length ?? 0;
+      if (overdueCount > 0) {
+        notifs.push({ id: `overdue-pay-${overdueCount}`, icon: "💳", type: "warn", title: "Overdue Payments", body: `${overdueCount} payment${overdueCount > 1 ? "s" : ""} overdue`, ts: nowMs - 1000 });
+      }
+      // New registrations (students without groupId)
+      const ungrouped = data.users?.filter(u => u.role === "student" && !u.groupId).length ?? 0;
+      if (ungrouped > 0) {
+        notifs.push({ id: `ungrouped-${ungrouped}`, icon: "📋", type: "info", title: "Pending Registrations", body: `${ungrouped} student${ungrouped > 1 ? "s" : ""} not yet assigned to a group`, ts: nowMs - 2000 });
+      }
+    }
+
+    // Homework submissions for teachers
+    if (user.role === "teacher") {
+      const myGroupIds = new Set(data.groups?.filter(g => String(g.teacherId) === String(user.id)).map(g => String(g.id)) ?? []);
+      const mySessions = data.sessions?.filter(s => myGroupIds.has(String(s.groupId))) ?? [];
+      const myLessonIds = new Set(mySessions.map(s => s.id));
+      data.lessons?.forEach(l => {
+        if (!myLessonIds.has(l.sessionId) && !myLessonIds.has(l.id)) return;
+        const newSubs = (l.hwSubmissions ?? []).filter(s => !s.feedback);
+        if (newSubs.length > 0) {
+          notifs.push({ id: `hw-sub-${l.id}`, icon: "📝", type: "success", title: "Homework Submitted", body: `${newSubs.length} new submission${newSubs.length > 1 ? "s" : ""} for "${l.title || "lesson"}"`, ts: nowMs - 500 });
+        }
+      });
+    }
+
+    setNotifications(notifs.slice(0, 20));
+  }, [user, data]);
+
+  const markRead = (id) => {
+    setRead(prev => {
+      const next = new Set(prev); next.add(id);
+      try { localStorage.setItem('eloc_notif_read', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+  const markAllRead = () => {
+    setRead(prev => {
+      const next = new Set([...prev, ...notifications.map(n => n.id)]);
+      try { localStorage.setItem('eloc_notif_read', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+  const unreadCount = notifications.filter(n => !read.has(n.id)).length;
+  return { notifications, unreadCount, markRead, markAllRead };
+}
+
+// ─── NOTIFICATION BELL ────────────────────────────────────────────────────────
+function NotificationBell({ user, data }) {
+  const [open, setOpen] = useState(false);
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications(user, data);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const typeColor = { info: "#3b82f6", warn: "#f59e0b", success: "#22c55e", error: "#ef4444" };
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          position: "relative", background: open ? "var(--bg4)" : "var(--bg3)", border: "1px solid var(--border2)",
+          borderRadius: 9, width: 36, height: 36, display: "flex", alignItems: "center",
+          justifyContent: "center", cursor: "pointer", fontSize: 16, transition: "all .15s",
+          color: unreadCount > 0 ? "var(--accent2)" : "var(--text3)"
+        }}
+      >
+        🔔
+        {unreadCount > 0 && (
+          <span style={{
+            position: "absolute", top: -4, right: -4, background: "#ef4444", color: "#fff",
+            borderRadius: "50%", width: 16, height: 16, fontSize: 9, fontWeight: 800,
+            display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid var(--bg)"
+          }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
+        )}
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 8px)", right: 0, width: 320,
+          background: "var(--bg2)", border: "1px solid var(--border2)", borderRadius: 14,
+          boxShadow: "0 8px 40px rgba(0,0,0,.6)", zIndex: 999, overflow: "hidden"
+        }}>
+          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>🔔 Notifications</div>
+            {unreadCount > 0 && <button onClick={markAllRead} style={{ fontSize: 11, color: "var(--accent2)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)" }}>Mark all read</button>}
+          </div>
+          <div style={{ maxHeight: 340, overflowY: "auto" }}>
+            {notifications.length === 0 ? (
+              <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text3)", fontSize: 13 }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>🎉</div>
+                All caught up!
+              </div>
+            ) : notifications.map(n => (
+              <div key={n.id} onClick={() => markRead(n.id)} style={{
+                padding: "10px 14px", borderBottom: "1px solid var(--border)", cursor: "pointer",
+                background: "transparent", transition: "background .13s",
+                opacity: 1
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--bg3)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: `${typeColor[n.type] ?? "#f97316"}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>{n.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700 }}>{n.title}</div>
+                    <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 2, lineHeight: 1.4 }}>{n.body}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── GLOBAL SEARCH ────────────────────────────────────────────────────────────
+function GlobalSearch({ data, onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef(null);
+  const ref = useRef(null);
+
+  // Debounced search
+  const [debouncedQ, setDebouncedQ] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(query), 200);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setQuery(""); } };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Focus input when opened
+  useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50); }, [open]);
+
+  // Keyboard shortcut: Ctrl/Cmd+K
+  useEffect(() => {
+    const handler = e => { if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); setOpen(o => !o); } };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const results = useMemo(() => {
+    if (!debouncedQ.trim() || debouncedQ.length < 2) return [];
+    const q = debouncedQ.toLowerCase();
+    const hits = [];
+
+    data.users?.filter(u => u.role === "student").forEach(u => {
+      if (u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.city?.toLowerCase().includes(q)) {
+        hits.push({ type: "student", icon: "👨‍🎓", label: u.name, sub: `${u.email} · ${u.level ?? ""}`, page: "students", id: u.id });
+      }
+    });
+    data.users?.filter(u => u.role === "teacher").forEach(u => {
+      if (u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)) {
+        hits.push({ type: "teacher", icon: "👨‍🏫", label: u.name, sub: u.email, page: "teachers", id: u.id });
+      }
+    });
+    data.sessions?.forEach(s => {
+      if (s.title?.toLowerCase().includes(q) || s.date?.includes(q)) {
+        hits.push({ type: "session", icon: "📅", label: s.title, sub: `${s.date} · ${s.startTime || s.time || ""}`, page: "sessions", id: s.id });
+      }
+    });
+    data.books?.forEach(b => {
+      if (b.title?.toLowerCase().includes(q) || b.author?.toLowerCase().includes(q)) {
+        hits.push({ type: "book", icon: "📚", label: b.title, sub: b.author ?? "", page: "books", id: b.id });
+      }
+    });
+    data.groups?.forEach(g => {
+      if (g.name?.toLowerCase().includes(q) || g.level?.toLowerCase().includes(q)) {
+        hits.push({ type: "group", icon: "👥", label: g.name, sub: g.level ?? "", page: "groups", id: g.id });
+      }
+    });
+    return hits.slice(0, 12);
+  }, [debouncedQ, data]);
+
+  const highlight = (text) => {
+    if (!debouncedQ) return text;
+    const idx = text?.toLowerCase().indexOf(debouncedQ.toLowerCase());
+    if (idx < 0 || !text) return text;
+    return <>{text.slice(0, idx)}<mark style={{ background: "rgba(249,115,22,.3)", color: "var(--accent2)", borderRadius: 2 }}>{text.slice(idx, idx + debouncedQ.length)}</mark>{text.slice(idx + debouncedQ.length)}</>;
+  };
+
+  const typeColor = { student: "#22c55e", teacher: "#3b82f6", session: "#f97316", book: "#8b5cf6", group: "#f59e0b" };
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: "var(--bg3)", border: "1px solid var(--border2)", borderRadius: 9,
+          height: 36, padding: "0 12px", display: "flex", alignItems: "center", gap: 7,
+          cursor: "pointer", color: "var(--text3)", fontSize: 13, transition: "all .15s",
+          minWidth: 120
+        }}
+      >
+        <span>🔍</span>
+        <span style={{ fontSize: 12 }}>Search</span>
+        <span style={{ fontSize: 10, fontFamily: "var(--mono)", background: "var(--bg4)", padding: "1px 5px", borderRadius: 4, marginLeft: 4 }}>⌘K</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 8px)", right: 0, width: 380,
+          background: "var(--bg2)", border: "1px solid var(--border2)", borderRadius: 14,
+          boxShadow: "0 8px 40px rgba(0,0,0,.7)", zIndex: 999, overflow: "hidden"
+        }}>
+          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16, color: "var(--text3)" }}>🔍</span>
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search students, sessions, books…"
+              style={{
+                flex: 1, background: "none", border: "none", outline: "none", fontSize: 14,
+                color: "var(--text)", fontFamily: "var(--font)"
+              }}
+              onKeyDown={e => { if (e.key === "Escape") { setOpen(false); setQuery(""); } }}
+            />
+            {query && <button onClick={() => setQuery("")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--text3)" }}>✕</button>}
+          </div>
+          <div style={{ maxHeight: 320, overflowY: "auto" }}>
+            {debouncedQ.length < 2 ? (
+              <div style={{ padding: "16px", textAlign: "center", color: "var(--text3)", fontSize: 12 }}>Type at least 2 characters to search…</div>
+            ) : results.length === 0 ? (
+              <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--text3)", fontSize: 13 }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                No results for "{debouncedQ}"
+              </div>
+            ) : results.map((r, i) => (
+              <div key={i} onClick={() => { onNavigate(r.page); setOpen(false); setQuery(""); }}
+                style={{
+                  padding: "10px 14px", borderBottom: "1px solid var(--border)", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 10, transition: "background .12s"
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "var(--bg3)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                  background: `${typeColor[r.type] ?? "#f97316"}18`,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14
+                }}>{r.icon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{highlight(r.label)}</div>
+                  <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{highlight(r.sub)}</div>
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 99, background: `${typeColor[r.type] ?? "#f97316"}18`, color: typeColor[r.type] ?? "#f97316", flexShrink: 0 }}>{r.type}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── CSS ───────────────────────────────────────────────────────────────────────
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -590,6 +883,16 @@ tr:hover td{background:rgba(255,255,255,.018)}
 .t-error{border-left:3px solid var(--red)}
 .t-info{border-left:3px solid var(--blue)}
 .t-warn{border-left:3px solid var(--amber)}
+
+/* ── TOPBAR SEARCH ── */
+.topbar-search-btn{background:var(--bg3);border:1px solid var(--border2);border-radius:9px;
+  height:36px;padding:0 12px;display:flex;align-items:center;gap:7px;cursor:pointer;
+  color:var(--text3);font-size:13px;transition:all .15s;min-width:120px;font-family:var(--font)}
+.topbar-search-btn:hover{border-color:var(--accent);color:var(--text2)}
+
+/* ── CLICKABLE LIST ITEM ── */
+.li-clickable{cursor:pointer;transition:background .12s}
+.li-clickable:hover{background:rgba(249,115,22,.04)!important;border-radius:8px}
 
 /* ── CHART ── */
 .bar-chart{display:flex;align-items:flex-end;gap:6px;padding:0 2px}
@@ -1078,21 +1381,21 @@ tr:hover td{background:rgba(255,255,255,.018)}
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`;
 
 // ─── TINY COMPONENTS ──────────────────────────────────────────────────────────
-function Av({ name, sz = "av-md", color }) {
+const Av = React.memo(function Av({ name, sz = "av-md", color }) {
   const c = color ?? getAvatarColor(name);
   return <div className={`av ${sz}`} style={{ background: `${c}28`, color: c, borderColor: `${c}35` }}>{getInitials(name)}</div>;
-}
+});
 
-function Badge({ status, label }) {
+const Badge = React.memo(function Badge({ status, label }) {
   const c = statusColor[status] ?? "#6b7280";
   const LABELS = { paid:"Paid", pending:"Pending", overdue:"Overdue", on_hold:"On Hold",
     cancelled:"Cancelled", active:"Active", inactive:"Inactive", upcoming:"Upcoming",
     completed:"Completed", paused:"Paused", unpaid:"Unpaid" };
   const text = label ?? LABELS[status] ?? status;
   return <span className="badge" style={{ background: `${c}18`, color: c }}><span className="bdot" style={{ background: c }} />{text}</span>;
-}
+});
 
-function Modal({ open, onClose, title, children, lg, xl }) {
+const Modal = React.memo(function Modal({ open, onClose, title, children, lg, xl }) {
   if (!open) return null;
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -1105,7 +1408,7 @@ function Modal({ open, onClose, title, children, lg, xl }) {
       </div>
     </div>
   );
-}
+});
 
 function BarChart({ data, h = 110 }) {
   const max = Math.max(...data.map(d => d.v), 1);
@@ -2173,7 +2476,7 @@ async function downloadFile(url, filename) {
   }
 }
 // ─── FILE ROW COMPONENT ───────────────────────────────────────────────────────
-function FileRow({ fileId, label, onPreview, onRemove, canRemove }) {
+const FileRow = React.memo(function FileRow({ fileId, label, onPreview, onRemove, canRemove }) {
   const file = getFile(fileId);
   const name = file?.name ?? label ?? "Attached file";
   const ext  = name.split(".").pop()?.toLowerCase() || "";
@@ -2205,7 +2508,7 @@ function FileRow({ fileId, label, onPreview, onRemove, canRemove }) {
       </div>
     </div>
   );
-}
+});
 
 // ─── LESSON CONTENT PANEL ─────────────────────────────────────────────────────
 // Used inside session detail – teacher & admin can edit, students can only view
@@ -2323,10 +2626,19 @@ function LessonPanel({ session, data, setData, userRole, userId }) {
                 {lesson.fileId && (
                   <FileRow fileId={lesson.fileId} label="Lesson PDF" onPreview={f => setPdfViewer(f)} canRemove={false} />
                 )}
+                {/* FIX: Show Google Drive links in view mode for teachers */}
+                {[lesson.driveLink, ...(lesson.extraDriveLinks ?? []),
+                  ...(lesson.fileId && isGDriveLink(lesson.fileId) ? [lesson.fileId] : []),
+                  ...(lesson.extraFiles ?? []).filter(isGDriveLink),
+                ].filter(Boolean).map((link, i) => (
+                  <DriveFileRow key={link+i} link={link}
+                    label={i === 0 ? "Lesson PDF (Drive)" : `Extra Material ${i}`}
+                    canRemove={false} />
+                ))}
                 {lesson.extraFiles?.length > 0 && (
                   <div className="mt8">
                     <div className="text-xs muted mb6">Additional Materials</div>
-                    {lesson.extraFiles.map(fid => (
+                    {lesson.extraFiles.filter(fid => !isGDriveLink(fid)).map(fid => (
                       <FileRow key={fid} fileId={fid} onPreview={f => setPdfViewer(f)} canRemove={false} />
                     ))}
                   </div>
@@ -2722,6 +3034,56 @@ function BooksPage({ data, setData }) {
   );
 }
 
+// ─── HW FEEDBACK BUTTON (Teacher → Student) ──────────────────────────────────
+function HwFeedbackButton({ lessonId, studentId, existingFeedback, onSave }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(existingFeedback || "");
+  const hasFeedback = !!existingFeedback;
+  return (
+    <>
+      <button
+        className={`btn btn-xs ${hasFeedback ? "btn-pr" : "btn-se"}`}
+        onClick={() => { setText(existingFeedback || ""); setOpen(true); }}
+        title={hasFeedback ? "Edit feedback" : "Leave feedback"}
+        style={{ flexShrink: 0 }}
+      >
+        {hasFeedback ? "✏️ Feedback" : "💬 Feedback"}
+      </button>
+      {open && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", zIndex: 3000,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16
+        }} onClick={() => setOpen(false)}>
+          <div style={{
+            background: "var(--bg2)", borderRadius: 16, padding: 20, width: "100%",
+            maxWidth: 420, border: "1px solid var(--border2)", boxShadow: "0 8px 40px rgba(0,0,0,.6)"
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>💬 Homework Feedback</div>
+            <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 14 }}>
+              Leave feedback for this student's submission
+            </div>
+            <textarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder="Great work! Try to improve…"
+              rows={4}
+              style={{
+                width: "100%", background: "var(--bg3)", border: "1px solid var(--border2)",
+                borderRadius: 9, padding: "10px 12px", color: "var(--text)", fontSize: 13,
+                fontFamily: "var(--font)", resize: "vertical", outline: "none"
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button className="btn btn-se" style={{ flex: 1, justifyContent: "center" }} onClick={() => setOpen(false)}>Cancel</button>
+              <button className="btn btn-pr" style={{ flex: 1, justifyContent: "center" }} onClick={() => { onSave(text); setOpen(false); }}>Save Feedback</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── MATERIALS PAGE (Teacher) ─────────────────────────────────────────────────
 function MaterialsPage({ user, data, setData }) {
   data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
@@ -3041,7 +3403,7 @@ function MaterialsPage({ user, data, setData }) {
               <div className="empty-title">No lessons yet</div>
               <div className="text-sm muted">Open a session and add lesson content from the Materials tab</div>
             </div>
-          ) : filteredLessons.map(({ lesson, session, group, book, chapter, files }) => {
+          ) : filteredLessons.map(({ lesson, session, group, book, chapter, files, driveLinks }) => {
             const isPast    = session?.status === "completed";
             const isUpcoming = session?.status === "upcoming";
             const hwOverdue = lesson.homeworkDue && lesson.homeworkDue < today;
@@ -3189,6 +3551,17 @@ function MaterialsPage({ user, data, setData }) {
                   const isOverdue  = lesson.homeworkDue && lesson.homeworkDue < today;
                   const isDueSoon  = lesson.homeworkDue && lesson.homeworkDue >= today &&
                     lesson.homeworkDue <= new Date(Date.now() + 3*86400000).toISOString().split("T")[0];
+                  // Students in this group who may have submitted homework
+                  const groupStudents = data.users.filter(u => u.role === "student" && String(u.groupId) === String(group?.id));
+                  // Read submissions: first from localStorage (student-side uploads), then fallback to lesson.hwSubmissions
+                  const getSubmission = (studentId) => {
+                    try {
+                      const lsKey = `hw_sub_${lesson.id}_${studentId}`;
+                      const lsSub = localStorage.getItem(lsKey);
+                      if (lsSub) return JSON.parse(lsSub);
+                    } catch(_) {}
+                    return (lesson.hwSubmissions ?? []).find(s => String(s.studentId) === String(studentId)) ?? null;
+                  };
 
                   return (
                     <div key={lesson.id} className="card mb8"
@@ -3197,7 +3570,7 @@ function MaterialsPage({ user, data, setData }) {
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 700 }}>{lesson.title || session?.title}</div>
                           <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>
-                            {group?.name ?? "—"} · Session: {session?.date ?? "—"}
+                            {group?.name ?? "—"} · Session: {session?.date ?? "—"} · {groupStudents.length} students
                           </div>
                         </div>
                         <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
@@ -3212,9 +3585,142 @@ function MaterialsPage({ user, data, setData }) {
                         </div>
                       </div>
                       <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6,
-                        background: "var(--bg3)", borderRadius: 8, padding: "8px 12px" }}>
+                        background: "var(--bg3)", borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
                         {lesson.homework}
                       </div>
+                      {/* FIX: Student submissions section */}
+                      {groupStudents.length > 0 && (
+                        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 8 }}>
+                            📬 Submissions ({groupStudents.filter(st => !!getSubmission(st.id)).length}/{groupStudents.length})
+                          </div>
+                          {groupStudents.map(st => {
+                            const sub = getSubmission(st.id);
+                            const storageKey = `hw_sub_${lesson.id}_${st.id}`;
+
+                            // Teacher deletes the file blob from localStorage to free space,
+                            // but keeps a lightweight marker so status stays "reviewed"
+                            const handleDeleteFile = () => {
+                              try {
+                                if (sub?.fileData) {
+                                  // Replace full submission with a slim reviewed marker (no base64)
+                                  const reviewed = {
+                                    studentId:   sub.studentId,
+                                    studentName: sub.studentName,
+                                    lessonId:    sub.lessonId,
+                                    fileName:    sub.fileName,
+                                    fileSizeKB:  sub.fileSizeKB,
+                                    submittedAt: sub.submittedAt,
+                                    reviewedAt:  new Date().toISOString(),
+                                    feedback:    sub.feedback,
+                                    fileData:    null,   // file blob removed
+                                    fileDeleted: true,
+                                  };
+                                  localStorage.setItem(storageKey, JSON.stringify(reviewed));
+                                } else {
+                                  localStorage.removeItem(storageKey);
+                                }
+                                toast(`🗑 File deleted — storage freed`);
+                                // Force re-render by toggling a dummy state
+                                setTab(t => t);
+                              } catch(e) {
+                                toast("Delete failed", "error");
+                              }
+                            };
+
+                            return (
+                              <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px",
+                                borderRadius: 8, background: "var(--bg3)", border: "1px solid var(--border)", marginBottom: 6 }}>
+                                <Av name={st.name} sz="av-sm" />
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 700 }}>{st.name}</div>
+                                  {sub ? (
+                                    <div style={{ fontSize: 10, marginTop: 2 }}>
+                                      {sub.fileDeleted ? (
+                                        <span style={{ color: "var(--text3)" }}>
+                                          ✅ Submitted {sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString() : ""}
+                                          {" · "}<span style={{ color: "#8b5cf6", fontWeight: 700 }}>📋 Reviewed</span>
+                                          {sub.fileName && <span style={{ color: "var(--text3)" }}> · {sub.fileName}</span>}
+                                        </span>
+                                      ) : (
+                                        <span style={{ color: "var(--green)" }}>
+                                          ✅ Submitted {sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString() : ""}
+                                          {sub.fileSizeKB && <span style={{ color: "var(--text3)" }}> · {sub.fileSizeKB} KB</span>}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>⏳ Not submitted yet</div>
+                                  )}
+                                </div>
+
+                                {/* View / Download / Delete buttons */}
+                                {sub && (sub.fileData || sub.fileId) && !sub.fileDeleted && (() => {
+                                  if (sub.fileData) {
+                                    const isImg = sub.fileData.startsWith("data:image");
+                                    const isPdf = sub.fileData.startsWith("data:application/pdf") ||
+                                                  (sub.fileName||"").toLowerCase().endsWith(".pdf");
+                                    return (
+                                      <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                                        {(isImg || isPdf) && (
+                                          <button className="btn btn-se btn-xs" onClick={() =>
+                                            setPdfViewer({ dataUrl: sub.fileData, name: sub.fileName || "homework", type: isPdf ? "application/pdf" : "image/jpeg" })
+                                          }>👁 View</button>
+                                        )}
+                                        <a href={sub.fileData} download={sub.fileName || "homework"} style={{ textDecoration:"none" }}>
+                                          <button className="btn btn-pr btn-xs">📥 Download</button>
+                                        </a>
+                                        <button className="btn btn-da btn-xs" title="Delete file to free storage" onClick={handleDeleteFile}>
+                                          🗑
+                                        </button>
+                                      </div>
+                                    );
+                                  }
+                                  // Legacy: fileId references Cloudinary
+                                  const f = getFile(sub.fileId);
+                                  return f ? (
+                                    <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                                      <button className="btn btn-se btn-xs" onClick={() => setPdfViewer(f)}>👁 View</button>
+                                      <a href={f.dataUrl} download={f.name} style={{ textDecoration:"none" }}>
+                                        <button className="btn btn-pr btn-xs">📥</button>
+                                      </a>
+                                      <button className="btn btn-da btn-xs" title="Delete file to free storage" onClick={handleDeleteFile}>
+                                        🗑
+                                      </button>
+                                    </div>
+                                  ) : null;
+                                })()}
+
+                                {/* Feedback button */}
+                                <HwFeedbackButton lessonId={lesson.id} studentId={st.id} existingFeedback={sub?.feedback} onSave={(feedback) => {
+                                  setData(d => ({
+                                    ...d,
+                                    lessons: d.lessons.map(l => l.id === lesson.id ? {
+                                      ...l,
+                                      hwSubmissions: (l.hwSubmissions ?? []).map(s =>
+                                        String(s.studentId) === String(st.id)
+                                          ? { ...s, feedback }
+                                          : s
+                                      )
+                                    } : l)
+                                  }));
+                                  // Also save feedback into localStorage marker
+                                  try {
+                                    const current = JSON.parse(localStorage.getItem(storageKey) || "{}");
+                                    localStorage.setItem(storageKey, JSON.stringify({ ...current, feedback }));
+                                  } catch(_) {}
+                                  api.lessons.update(lesson.id, {
+                                    hwSubmissions: (lesson.hwSubmissions ?? []).map(s =>
+                                      String(s.studentId) === String(st.id) ? { ...s, feedback } : s
+                                    )
+                                  }).catch(() => {});
+                                  toast("Feedback saved ✅");
+                                }} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -3322,8 +3828,8 @@ function SessionDetailModal({ sessionId, data, setData, onClose, userRole, userI
       const clean = deepClean(updated);
       setData(d => ({ ...d, sessions: d.sessions.map(x => x.id === s.id ? { ...x, ...clean } : x) }));
       toast("✅ Session updated");
+      setSessTab("info");
     } catch(e) { toast(e.message || "Failed to update session", "error"); }
-    setEditMode(false);
   };
 
   return (
@@ -3539,22 +4045,31 @@ function SessionsPage({ data, setData, userRole, userId }) {
 
   const myId = userId;
 
-  // ── SCOPED SESSIONS: teacher sees only their own ──
-  const myTeacherGroups = userRole === "teacher"
-    ? data.groups.filter(g => String(g.teacherId) === String(myId))
-    : data.groups;
+  // ── SCOPED SESSIONS: teacher sees only their own ── (memoized for performance)
+  const myTeacherGroups = useMemo(() =>
+    userRole === "teacher"
+      ? data.groups.filter(g => String(g.teacherId) === String(myId))
+      : data.groups,
+    [userRole, myId, data.groups]
+  );
 
-  const visibleSessions = userRole === "teacher"
-    ? data.sessions.filter(s => String(s.teacherId) === String(myId))
-    : userRole === "student"
-      ? data.sessions.filter(s => { const u = data.users.find(x => x.id === myId); const gid = u?.groupId || ''; return gid && String(s.groupId) === String(gid); })
-      : data.sessions;
+  const visibleSessions = useMemo(() =>
+    userRole === "teacher"
+      ? data.sessions.filter(s => String(s.teacherId) === String(myId))
+      : userRole === "student"
+        ? data.sessions.filter(s => { const u = data.users.find(x => x.id === myId); const gid = u?.groupId || ''; return gid && String(s.groupId) === String(gid); })
+        : data.sessions,
+    [userRole, myId, data.sessions, data.users]
+  );
 
-  // Admin filters (applied on top of role-scoping)
-  const filteredSessions = visibleSessions
-    .filter(s => filterTeacher === "all" || String(s.teacherId) === filterTeacher)
-    .filter(s => filterGroup === "all" || String(s.groupId) === filterGroup)
-    .filter(s => filterStatus === "all" || s.status === filterStatus);
+  // Admin filters (applied on top of role-scoping) — memoized
+  const filteredSessions = useMemo(() =>
+    visibleSessions
+      .filter(s => filterTeacher === "all" || String(s.teacherId) === filterTeacher)
+      .filter(s => filterGroup === "all" || String(s.groupId) === filterGroup)
+      .filter(s => filterStatus === "all" || s.status === filterStatus),
+    [visibleSessions, filterTeacher, filterGroup, filterStatus]
+  );
 
   const hasFilters = filterTeacher !== "all" || filterGroup !== "all" || filterStatus !== "all";
 
@@ -3619,9 +4134,7 @@ function SessionsPage({ data, setData, userRole, userId }) {
     }
   };
 
-  const markAttendance = async (sess, studentId, present) => {
-    // Update attendance for this student only — do NOT auto-complete the session
-    // so that all other students remain selectable
+  const markAttendance = useCallback(async (sess, studentId, present) => {
     setData(d => ({ ...d, sessions: d.sessions.map(s =>
       s.id === sess.id
         ? { ...s, attendance: { ...s.attendance, [studentId]: present } }
@@ -3633,8 +4146,9 @@ function SessionsPage({ data, setData, userRole, userId }) {
       console.error('Attendance save error', e);
       toast('Failed to save attendance - please try again', 'error');
     }
-  };
-  const completeSession = async (sess) => {
+  }, [setData]);
+
+  const completeSession = useCallback(async (sess) => {
     setData(d => ({ ...d, sessions: d.sessions.map(s => s.id === sess.id ? { ...s, status: "completed" } : s) }));
     setViewSess(s => s ? { ...s, status: "completed" } : s);
     try {
@@ -3643,8 +4157,9 @@ function SessionsPage({ data, setData, userRole, userId }) {
     } catch(e) {
       toast("Completed locally. Sync error: " + (e.message || ""), "warn");
     }
-  };
-  const cancelSession = async (scope, sess) => {
+  }, [setData]);
+
+  const cancelSession = useCallback(async (scope, sess) => {
     // Optimistic local update first
     setData(d => ({ ...d, sessions: d.sessions.map(s => {
       if (scope === "this" && s.id === sess.id) return { ...s, status: "cancelled", isCancelled: true };
@@ -3687,8 +4202,9 @@ function SessionsPage({ data, setData, userRole, userId }) {
     } catch(e) {
       toast("Cancel saved locally. Sync error: " + (e.message || ""), "warn");
     }
-  };
-  const skipDate = async (sess) => {
+  }, [setData]);
+
+  const skipDate = useCallback(async (sess) => {
     setData(d => ({ ...d, sessions: d.sessions.map(s => s.id === sess.id ? { ...s, status: "cancelled", isCancelled: true, isException: true } : s) }));
     setViewSess(null);
     try {
@@ -3697,7 +4213,7 @@ function SessionsPage({ data, setData, userRole, userId }) {
     } catch(e) {
       toast("Skipped locally. Sync error: " + (e.message || ""), "warn");
     }
-  };
+  }, [setData]);
 
   // ── WEEK VIEW HELPERS ──
   const getWeekStart = (date) => {
@@ -3921,6 +4437,42 @@ function SessionsPage({ data, setData, userRole, userId }) {
                 return (
                   <div key={di} className={`week-day-col ${isToday ? "today" : ""}`}
                     style={{ flex: 1, height: HOURS.length * HOUR_H, position: "relative", cursor: (userRole === "admin" || userRole === "teacher") ? "pointer" : "default" }}
+                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.background = "rgba(249,115,22,.05)"; }}
+                    onDragLeave={e => { e.currentTarget.style.background = ""; }}
+                    onDrop={async e => {
+                      e.preventDefault();
+                      e.currentTarget.style.background = "";
+                      const sessionId = e.dataTransfer.getData("sessionId");
+                      if (!sessionId) return;
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const offsetY = e.dataTransfer.getData("dragOffsetY") || 0;
+                      const relY = Math.max(0, e.clientY - rect.top - Number(offsetY));
+                      // Convert Y position to time
+                      const totalMins = HOURS[0] * 60 + Math.round((relY / HOUR_H) * 60 / 15) * 15;
+                      const h = Math.floor(totalMins / 60);
+                      const m = totalMins % 60;
+                      const newTime = `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+                      const sess = data.sessions.find(x => x.id === sessionId);
+                      if (!sess) return;
+                      const canEdit = userRole === "admin" || (userRole === "teacher" && String(sess.teacherId) === String(userId));
+                      if (!canEdit) return;
+                      // Conflict check: any session on same day/time for same group?
+                      const conflict = data.sessions.find(x =>
+                        x.id !== sessionId && x.date === ds && !x.isCancelled &&
+                        String(x.groupId) === String(sess.groupId) &&
+                        Math.abs(timeToY(x.startTime || x.time || "00:00") - timeToY(newTime)) < 30
+                      );
+                      if (conflict) { toast(`⚠ Conflict with "${conflict.title}" at ${conflict.time}`, "warn"); return; }
+                      const duration = sess.duration || 60;
+                      const endH = Math.floor((totalMins + duration) / 60);
+                      const endM = (totalMins + duration) % 60;
+                      const newEndTime = `${String(endH).padStart(2,"0")}:${String(endM).padStart(2,"0")}`;
+                      try {
+                        await api.sessions.update(sessionId, { date: ds, startTime: newTime, time: newTime, endTime: newEndTime });
+                        setData(d => ({ ...d, sessions: d.sessions.map(x => x.id === sessionId ? { ...x, date: ds, startTime: newTime, time: newTime, endTime: newEndTime } : x) }));
+                        toast(`✅ Session moved to ${ds} at ${newTime}`);
+                      } catch(err) { toast(err.message || "Failed to reschedule", "error"); }
+                    }}
                     onClick={e => {
                       if (e.target !== e.currentTarget) return; // only empty space clicks
                       if (userRole === "admin" || userRole === "teacher") setShowCreate(true);
@@ -3958,15 +4510,24 @@ function SessionsPage({ data, setData, userRole, userId }) {
                       }).length;
                       const colW = prevOverlap > 0 ? "48%" : "96%";
                       const colL = prevOverlap > 0 ? "49%" : "2%";
+                      const canDrag = userRole === "admin" || (userRole === "teacher" && String(s.teacherId) === String(userId));
 
                       return (
                         <div key={s.id} className="week-evt"
+                          draggable={canDrag}
+                          onDragStart={canDrag ? (e) => {
+                            e.dataTransfer.setData("sessionId", s.id);
+                            e.dataTransfer.setData("dragOffsetY", e.clientY - e.currentTarget.getBoundingClientRect().top);
+                            e.currentTarget.style.opacity = "0.5";
+                          } : undefined}
+                          onDragEnd={canDrag ? (e) => { e.currentTarget.style.opacity = "1"; } : undefined}
                           style={{
                             top, height: height - 2,
                             left: colL, width: colW,
                             background: `${color}20`,
                             color,
                             opacity: s.status === "cancelled" ? .4 : 1,
+                            cursor: canDrag ? "grab" : "pointer",
                           }}
                           onClick={() => setViewSess(s)}>
                           <div className="week-evt-title">{s.sessionMode === "online" ? "💻 " : ""}{s.title}</div>
@@ -5578,7 +6139,7 @@ function StudentsPage({ data, setData }) {
 
   const allStudents = data.users.filter(u => u.role === "student");
 
-  const students = allStudents
+  const students = useMemo(() => allStudents
     .filter(s => lvlFilter  === "all" || s.level         === lvlFilter)
     .filter(s => payFilter  === "all" || derivePayStatus(data.payments, s.id, data.users) === payFilter)
     .filter(s => groupFilter === "all"|| String(s.groupId) === groupFilter)
@@ -5609,7 +6170,9 @@ function StudentsPage({ data, setData }) {
       }
       const cmp = String(va).localeCompare(String(vb));
       return sortDir === "asc" ? cmp : -cmp;
-    });
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  , [allStudents.length, data.payments, lvlFilter, payFilter, groupFilter, dateFrom, dateTo, search, sortBy, sortDir]);
 
   const SortTh = ({ col, children }) => (
     <th style={{ cursor:"pointer", userSelect:"none", whiteSpace:"nowrap" }}
@@ -7518,6 +8081,9 @@ function StudentDashboard({ user, data }) {
   const attRate = completed.length > 0 ? Math.round((attended / completed.length) * 100) : 0;
   const myPayments = data.payments.filter(p => String(p.studentId) === String(user.id));
 
+  // FIX: Session detail modal state for student dashboard
+  const [viewSessionId, setViewSessionId] = useState(null);
+
   return (
     <div>
       <div className="ph"><div><div className="ph-title">Hello, {user.name.split(" ")[0]} 👋</div><div className="ph-sub">Your learning overview</div></div><Badge status={derivePayStatus(data.payments, user.id, data.users)} /></div>
@@ -7537,8 +8103,8 @@ function StudentDashboard({ user, data }) {
         ))}
       </div>
 
-      {/* Next Lesson Preview */}
-      <NextLessonCard data={data} user={user} onViewSession={null} />
+      {/* FIX: Next Lesson Preview — now clickable, opens session detail */}
+      <NextLessonCard data={data} user={user} onViewSession={s => setViewSessionId(s.id)} />
       <div className="g2">
         {myGroup && <div className="card">
           <div className="sh-title mb12">My Class</div>
@@ -7552,14 +8118,14 @@ function StudentDashboard({ user, data }) {
         <div className="card">
           <div className="sh-title mb12">Upcoming Sessions</div>
           {upcoming.slice(0, 4).map(s => (
-            <div key={s.id} className="li">
+            <div key={s.id} className="li" style={{ cursor: "pointer" }} onClick={() => setViewSessionId(s.id)}>
               <div style={{ width: 34, height: 34, background: "var(--bg4)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s.sessionMode === "online" ? "💻" : "📝"}</div>
-              <div style={{ flex: 1 }}><div className="fw7 text-sm">{s.title}</div><div className="text-xs muted">{s.date}</div></div>
+              <div style={{ flex: 1 }}><div className="fw7 text-sm">{s.title}</div><div className="text-xs muted">{s.date} · {s.startTime || s.time}</div></div>
               {s.sessionMode === "online" && getMeetingLink(s, data.series) && (() => {
                 const minsUntil = minutesUntilSession(s.date, s.time);
                 const canJoin = minsUntil <= 30;
                 return canJoin
-                  ? <button className="btn btn-sm" style={{ background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", border: "none", fontSize: 11 }} onClick={() => window.open(getMeetingLink(s, data.series), "_blank")}>🎥 Join</button>
+                  ? <button className="btn btn-sm" style={{ background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", border: "none", fontSize: 11 }} onClick={e => { e.stopPropagation(); window.open(getMeetingLink(s, data.series), "_blank"); }}>🎥 Join</button>
                   : <span className="text-xs muted mono">{s.time}</span>;
               })()}
               {s.sessionMode !== "online" && <div className="sess-time">{s.time}</div>}
@@ -7582,6 +8148,18 @@ function StudentDashboard({ user, data }) {
           </div>)}
         </div>
       </div>
+
+      {/* FIX: Session detail modal for student */}
+      {viewSessionId && (
+        <SessionDetailModal
+          sessionId={viewSessionId}
+          data={data} setData={() => {}}
+          onClose={() => setViewSessionId(null)}
+          userRole="student" userId={user.id}
+          onComplete={() => {}} onCancel={() => {}} onSkip={() => {}} onMarkAttendance={() => {}}
+          onScopePick={() => {}}
+        />
+      )}
     </div>
   );
 }
@@ -8388,6 +8966,91 @@ function StudentAttendance({ user, data }) {
   );
 }
 
+// ─── HOMEWORK UPLOAD BOX (top-level component — must NOT be nested) ───────────
+// Extracted from StudentMaterials so React never re-creates it on re-render,
+// which was destroying the useRef and breaking the file-input click.
+function HwUploadBox({ lessonId, uploadState: state, isDragOver, onUpload, onDragChange, onClear }) {
+  const inputRef = useRef(null);
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    onDragChange(null);
+    const file = e.dataTransfer.files[0];
+    if (file) onUpload(lessonId, file);
+  };
+
+  const handleChange = (e) => {
+    const file = e.target.files[0];
+    if (file) onUpload(lessonId, file);
+    // reset input so the same file can be re-selected after "Upload again"
+    e.target.value = "";
+  };
+
+  if (state?.status === "done") return (
+    <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", borderRadius:10,
+      background:"rgba(34,197,94,.08)", border:"1px solid rgba(34,197,94,.2)" }}>
+      <div style={{ width:34, height:34, borderRadius:8, background:"rgba(34,197,94,.12)",
+        display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>✅</div>
+      <div style={{ flex:1 }}>
+        <div className="fw7" style={{ fontSize:13, color:"var(--green)" }}>Homework submitted!</div>
+        <div className="text-xs muted">{state.file?.name}</div>
+      </div>
+      <button className="btn btn-se btn-xs" onClick={() => onClear(lessonId)}>
+        Upload again
+      </button>
+    </div>
+  );
+
+  if (state?.status === "uploading") return (
+    <div style={{ padding:"12px 14px", borderRadius:10, background:"var(--bg3)",
+      border:"1px solid var(--border)" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+        <span className="fw6" style={{ fontSize:13 }}>Uploading {state.file?.name}…</span>
+        <span className="text-xs muted">{state.progress}%</span>
+      </div>
+      <div style={{ height:5, background:"var(--bg4)", borderRadius:99, overflow:"hidden" }}>
+        <div style={{ height:"100%", width:`${state.progress}%`,
+          background:"linear-gradient(90deg,var(--accent),var(--accent2))",
+          borderRadius:99, transition:"width .4s" }} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      onDragOver={e => { e.preventDefault(); onDragChange(lessonId); }}
+      onDragLeave={() => onDragChange(null)}
+      onDrop={handleDrop}
+      style={{
+        padding:"18px 16px", borderRadius:10, cursor:"pointer", textAlign:"center",
+        transition:"all .2s",
+        border:`2px dashed ${isDragOver ? "var(--accent)" : "rgba(245,158,11,.35)"}`,
+        background: isDragOver ? "rgba(249,115,22,.07)" : "rgba(245,158,11,.03)",
+      }}
+    >
+      {/* Hidden file input — separate from the click div to avoid double-fire */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+        style={{ display:"none" }}
+        onChange={handleChange}
+      />
+      <div style={{ fontSize:26, marginBottom:6 }}>📤</div>
+      <div className="fw7" style={{ fontSize:13, color:"var(--amber)", marginBottom:3 }}>Upload Homework</div>
+      <div className="text-xs muted">PDF · Image · DOC — drag & drop or click to browse</div>
+      {state?.status === "error" && (
+        <div style={{ marginTop:8, fontSize:12, color:"var(--red)",
+          padding:"6px 10px", borderRadius:6, background:"rgba(239,68,68,.08)",
+          border:"1px solid rgba(239,68,68,.2)" }}>
+          ⚠ Upload failed — please try again
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── STUDENT MATERIALS PAGE ───────────────────────────────────────────────────
 function StudentMaterials({ user, data }) {
   data = { users:[], groups:[], sessions:[], payments:[], books:[], lessons:[], series:[], teacherPayments:[], attendance:[], ...data };
@@ -8395,7 +9058,27 @@ function StudentMaterials({ user, data }) {
   const [pdfViewer,    setPdfViewer]    = useState(null);
   const [activeTab,    setActiveTab]    = useState("lessons");
   const [expandedCard, setExpandedCard] = useState(null);
-  const [hwUploads,    setHwUploads]    = useState({});
+  const [hwUploads,    setHwUploads]    = useState(() => {
+    // Rehydrate previous submissions from localStorage on mount
+    try {
+      const saved = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("hw_sub_") && key.includes(`_${user.id}`)) {
+          const sub = JSON.parse(localStorage.getItem(key));
+          if (sub?.lessonId) {
+            saved[sub.lessonId] = {
+              file: { name: sub.fileName },
+              status: "done",
+              progress: 100,
+              submission: sub,
+            };
+          }
+        }
+      }
+      return saved;
+    } catch(_) { return {}; }
+  });
   const [dragOver,     setDragOver]     = useState(null);
   const [hwFilter,     setHwFilter]     = useState("all");
   const [lessonSearch, setLessonSearch] = useState("");
@@ -8469,18 +9152,109 @@ function StudentMaterials({ user, data }) {
     }
   };
 
-  // Homework upload
+  // Homework upload — now sends to backend (backend fixed to allow students on POST /files)
+  // Falls back to localStorage if server fails (e.g. offline / still deploying)
   const handleHwUpload = async (lessonId, file) => {
     if (!file) return;
-    setHwUploads(p => ({ ...p, [lessonId]: { file, status:"uploading", progress:10 } }));
+
+    // ── Validate ──────────────────────────────────────────────────────────────
+    const allowedExts = ["pdf","jpg","jpeg","png","doc","docx"];
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!allowedExts.includes(ext)) {
+      toast(`File type .${ext} not supported`, "error"); return;
+    }
+    const MAX_MB = 10;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      toast(`File too large — max ${MAX_MB} MB`, "error"); return;
+    }
+
+    setHwUploads(p => ({ ...p, [lessonId]: { file, status:"uploading", progress:15 } }));
+
+    // Progress ticker
+    const ticker = setInterval(() =>
+      setHwUploads(p => {
+        const cur = p[lessonId]?.progress ?? 15;
+        return cur < 85 ? { ...p, [lessonId]: { ...p[lessonId], progress: cur + 8 } } : p;
+      }), 400);
+
     try {
-      setHwUploads(p => ({ ...p, [lessonId]: { ...p[lessonId], progress:40 } }));
-      await api.lessons.uploadFile(lessonId, file);
+      const token = localStorage.getItem("eloc_token");
+      const BASE  = "https://eloc-backend.onrender.com/api";
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`${BASE}/lessons/${lessonId}/files`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      clearInterval(ticker);
+
+      if (!res.ok) {
+        let msg = `Upload failed (${res.status})`;
+        try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
+        throw new Error(msg);
+      }
+
+      const result = await res.json();
       setHwUploads(p => ({ ...p, [lessonId]: { file, status:"done", progress:100 } }));
-      toast("✅ Homework submitted successfully!");
+
+      // Also save a lightweight localStorage marker for immediate UI feedback
+      const storageKey = `hw_sub_${lessonId}_${user.id}`;
+      try {
+        localStorage.setItem(storageKey, JSON.stringify({
+          studentId:   user.id,
+          studentName: user.name,
+          lessonId,
+          fileName:    file.name,
+          fileSizeKB:  Math.round(file.size / 1024),
+          fileData:    null,          // no base64 — file is on server
+          fileDeleted: false,
+          submittedAt: new Date().toISOString(),
+          feedback:    null,
+          serverUrl:   result.fileUrl || result.fileId || "",
+        }));
+      } catch(_) {}
+
+      toast("✅ Homework submitted!");
+
     } catch(e) {
-      setHwUploads(p => ({ ...p, [lessonId]: { file, status:"error", progress:0 } }));
-      toast(e.message || "Upload failed", "error");
+      clearInterval(ticker);
+
+      // ── Fallback: localStorage base64 if server still unreachable ──────────
+      console.warn("Server upload failed, falling back to localStorage:", e.message);
+      try {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload  = ev => resolve(ev.target.result);
+          reader.onerror = () => reject(new Error("Could not read file"));
+          reader.readAsDataURL(file);
+        });
+
+        const storageKey = `hw_sub_${lessonId}_${user.id}`;
+        localStorage.setItem(storageKey, JSON.stringify({
+          studentId:   user.id,
+          studentName: user.name,
+          lessonId,
+          fileName:    file.name,
+          fileExt:     ext,
+          fileType:    file.type,
+          fileSizeKB:  Math.round(file.size / 1024),
+          fileData:    dataUrl,
+          submittedAt: new Date().toISOString(),
+          feedback:    null,
+          fileDeleted: false,
+          _offline:    true,
+        }));
+
+        setHwUploads(p => ({ ...p, [lessonId]: { file, status:"done", progress:100 } }));
+        toast("✅ Homework saved locally (will sync when server is available)");
+      } catch(fallbackErr) {
+        setHwUploads(p => ({ ...p, [lessonId]: { file, status:"error", progress:0 } }));
+        toast(e.message || "Upload failed — please try again", "error");
+      }
     }
   };
 
@@ -8567,78 +9341,6 @@ function StudentMaterials({ user, data }) {
             </div>
           );
         })}
-      </div>
-    );
-  };
-
-  // ── Homework upload box ───────────────────────────────────────────────────
-  const HwUploadBox = ({ lessonId }) => {
-    const state    = hwUploads[lessonId];
-    const isDrag   = dragOver === lessonId;
-    const inputRef = useRef();
-
-    const onDrop = (e) => {
-      e.preventDefault(); setDragOver(null);
-      const file = e.dataTransfer.files[0];
-      if (file) handleHwUpload(lessonId, file);
-    };
-
-    if (state?.status === "done") return (
-      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", borderRadius:10,
-        background:"rgba(34,197,94,.08)", border:"1px solid rgba(34,197,94,.2)" }}>
-        <div style={{ width:34, height:34, borderRadius:8, background:"rgba(34,197,94,.12)",
-          display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>✅</div>
-        <div style={{ flex:1 }}>
-          <div className="fw7" style={{ fontSize:13, color:"var(--green)" }}>Homework submitted!</div>
-          <div className="text-xs muted">{state.file?.name}</div>
-        </div>
-        <button className="btn btn-se btn-xs"
-          onClick={() => setHwUploads(p => ({ ...p, [lessonId]:null }))}>
-          Upload again
-        </button>
-      </div>
-    );
-
-    if (state?.status === "uploading") return (
-      <div style={{ padding:"12px 14px", borderRadius:10, background:"var(--bg3)",
-        border:"1px solid var(--border)" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-          <span className="fw6" style={{ fontSize:13 }}>Uploading {state.file?.name}…</span>
-          <span className="text-xs muted">{state.progress}%</span>
-        </div>
-        <div style={{ height:5, background:"var(--bg4)", borderRadius:99, overflow:"hidden" }}>
-          <div style={{ height:"100%", width:`${state.progress}%`,
-            background:"linear-gradient(90deg,var(--accent),var(--accent2))",
-            borderRadius:99, transition:"width .4s" }} />
-        </div>
-      </div>
-    );
-
-    return (
-      <div
-        onClick={() => inputRef.current?.click()}
-        onDragOver={e => { e.preventDefault(); setDragOver(lessonId); }}
-        onDragLeave={() => setDragOver(null)}
-        onDrop={onDrop}
-        style={{
-          padding:"18px 16px", borderRadius:10, cursor:"pointer", textAlign:"center",
-          transition:"all .2s",
-          border:`2px dashed ${isDrag ? "var(--accent)" : "var(--border)"}`,
-          background: isDrag ? "var(--glow)" : "var(--bg3)",
-        }}
-      >
-        <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-          style={{ display:"none" }}
-          onChange={e => { const f = e.target.files[0]; if (f) handleHwUpload(lessonId, f); }} />
-        <div style={{ fontSize:26, marginBottom:6 }}>📤</div>
-        <div className="fw7" style={{ fontSize:13, marginBottom:3 }}>Upload Homework</div>
-        <div className="text-xs muted">PDF · Image · DOC — drag & drop or click to browse</div>
-        {state?.status === "error" && (
-          <div style={{ marginTop:8, fontSize:12, color:"var(--red)",
-            padding:"6px 10px", borderRadius:6, background:"rgba(239,68,68,.08)" }}>
-            ⚠ Upload failed — please try again
-          </div>
-        )}
       </div>
     );
   };
@@ -8784,7 +9486,7 @@ function StudentMaterials({ user, data }) {
                   background:"rgba(245,158,11,.06)", border:"1px solid rgba(245,158,11,.12)" }}>
                   {lesson.homework}
                 </div>
-                <HwUploadBox lessonId={lesson.id} />
+                <HwUploadBox lessonId={lesson.id} uploadState={hwUploads[lesson.id]} isDragOver={dragOver === lesson.id} onUpload={handleHwUpload} onDragChange={setDragOver} onClear={id => setHwUploads(p => ({ ...p, [id]: null }))} />
               </div>
             )}
 
@@ -9029,7 +9731,7 @@ function StudentMaterials({ user, data }) {
                           {lesson.homework}
                         </div>
 
-                        <HwUploadBox lessonId={lesson.id} />
+                        <HwUploadBox lessonId={lesson.id} uploadState={hwUploads[lesson.id]} isDragOver={dragOver === lesson.id} onUpload={handleHwUpload} onDragChange={setDragOver} onClear={id => setHwUploads(p => ({ ...p, [id]: null }))} />
                       </div>
                     </div>
                   );
@@ -10777,6 +11479,8 @@ export default function App() {
               <div className="topbar-title">{titleMap[page] ?? "ELOC"}</div>
             </div>
             <div className="topbar-right">
+              <GlobalSearch data={data} onNavigate={p => { setPage(p); setSidebarOpen(false); }} />
+              <NotificationBell user={user} data={data} />
               <div className="topbar-chip topbar-date" style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--accent2)", background: "var(--glow)", borderColor: "rgba(249,115,22,.2)" }}>
                 {(() => {
                   const d = new Date();

@@ -45,13 +45,15 @@ router.get('/:id', async (req, res) => {
 router.post('/', adminOnly, async (req, res) => {
   try {
     const { name, email, password, role, phone, commission, salaryType,
-            age, city, level, groupId } = req.body;
+            age, city, level, groupId, permissions } = req.body;
     const exists = await User.findOne({ email: email.toLowerCase() });
     if (exists) return res.status(400).json({ message: 'Email already registered' });
 
     const user = await User.create({
       name, email, password, role, phone, commission, salaryType,
       age, city, level, groupId,
+      // Save permissions array for sub-admins (empty array = no access, undefined = full)
+      ...(Array.isArray(permissions) ? { permissions } : {}),
       avatar: name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2),
       registrationDate: new Date().toISOString().split('T')[0],
     });
@@ -82,11 +84,15 @@ router.put('/:id', async (req, res) => {
     const { name, email, phone, age, city, level, groupId,
             commission, salaryType, status, avatar,
             registrationDate, paymentStatus, notes,
-            trialDate, trialTime, registrationStatus } = req.body;
+            trialDate, trialTime, registrationStatus,
+            permissions } = req.body;
     const allowed = { name, email, phone, age, city, level, groupId,
                       commission, salaryType, status, avatar,
                       registrationDate, paymentStatus, notes,
                       trialDate, trialTime, registrationStatus };
+
+    // Allow admins to update permissions array (for sub-admin role management)
+    if (Array.isArray(permissions)) allowed.permissions = permissions;
 
     // Only admins can change roles
     if (req.user.role === 'admin' && req.body.role) allowed.role = req.body.role;

@@ -28,3 +28,10 @@ export const teacherOrAdmin = (req, res, next) => {
     return res.status(403).json({ message: 'Teacher or Admin access required' });
   next();
 };
+
+// ── NEW: allows all authenticated users (admin + teacher + student) ──
+export const anyAuthenticated = (req, res, next) => {
+  if (!req.user)
+    return res.status(401).json({ message: 'Authentication required' });
+  next();
+};

@@ -7,7 +7,7 @@ import { Lesson }         from '../models/Lesson.js';
 import { Series }         from '../models/Series.js';
 import { TeacherPayment } from '../models/TeacherPayment.js';
 import { Attendance }     from '../models/Attendance.js';
-import { protect, adminOnly, teacherOrAdmin } from '../middleware/auth.js';
+import { protect, adminOnly, teacherOrAdmin, anyAuthenticated } from '../middleware/auth.js';
 import { upload, cloudinary } from '../config/cloudinary.js';
 
 // ── UNIVERSAL ID NORMALIZER ──────────────────────────────────────────────────
@@ -366,24 +366,77 @@ lessonRouter.post('/', teacherOrAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-lessonRouter.put('/:id', teacherOrAdmin, async (req, res) => {
+lessonRouter.put('/:id', anyAuthenticated, async (req, res) => {
   try {
+    // Students can only update hwSubmissions on their own lesson
+    if (req.user.role === 'student') {
+      const { hwSubmissions } = req.body;
+      if (!hwSubmissions)
+        return res.status(403).json({ message: 'Students can only submit homework' });
+
+      // Validate: student can only add/update their own submission entry
+      const userId = req.user._id.toString();
+      const safe = hwSubmissions.filter(s => s.studentId === userId);
+      if (safe.length === 0)
+        return res.status(403).json({ message: 'You can only submit your own homework' });
+
+      // Merge: keep all other students' submissions, replace only this student's
+      const lesson = await Lesson.findById(req.params.id);
+      if (!lesson) return res.status(404).json({ message: 'Lesson not found' });
+
+      const existing = lesson.hwSubmissions || [];
+      const others   = existing.filter(s => s.studentId !== userId);
+      lesson.hwSubmissions = [...others, ...safe];
+      lesson.markModified('hwSubmissions');
+      await lesson.save();
+      return res.json(normalize(lesson));
+    }
+
+    // Teacher / Admin: full update
     const lesson = await Lesson.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!lesson) return res.status(404).json({ message: 'Lesson not found' });
     res.json(normalize(lesson));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// POST /api/lessons/:id/files — upload file
-lessonRouter.post('/:id/files', teacherOrAdmin, upload.single('file'), async (req, res) => {
+// POST /api/lessons/:id/files — upload file (teacher/admin for materials, student for homework)
+lessonRouter.post('/:id/files', anyAuthenticated, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
     const fileUrl  = req.file.path || req.file.secure_url || '';
     const publicId = req.file.filename || req.file.public_id || '';
     const fileEntry = {
       name: req.file.originalname, url: fileUrl,
       publicId, size: req.file.size, type: req.file.mimetype,
     };
+
+    if (req.user.role === 'student') {
+      // Student uploading homework — store as a hwSubmission entry
+      const lesson = await Lesson.findById(req.params.id);
+      if (!lesson) return res.status(404).json({ message: 'Lesson not found' });
+
+      const userId   = req.user._id.toString();
+      const existing = lesson.hwSubmissions || [];
+      const others   = existing.filter(s => s.studentId !== userId);
+      lesson.hwSubmissions = [...others, {
+        studentId:   userId,
+        studentName: req.user.name,
+        lessonId:    req.params.id,
+        fileName:    req.file.originalname,
+        fileType:    req.file.mimetype,
+        fileSizeKB:  Math.round((req.file.size || 0) / 1024),
+        fileData:    fileUrl,   // Cloudinary URL stored as fileData for consistency
+        submittedAt: new Date().toISOString(),
+        feedback:    null,
+        fileDeleted: false,
+      }];
+      lesson.markModified('hwSubmissions');
+      await lesson.save();
+      return res.json({ fileId: fileUrl, fileUrl, fileName: req.file.originalname, publicId });
+    }
+
+    // Teacher / Admin: add to lesson materials
     await Lesson.findByIdAndUpdate(req.params.id, { $push: { files: fileEntry } });
     res.json({ fileId: fileUrl, fileUrl, fileName: req.file.originalname, publicId });
   } catch (err) { res.status(500).json({ message: err.message }); }

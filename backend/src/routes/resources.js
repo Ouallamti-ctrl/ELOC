@@ -9,6 +9,7 @@ import { TeacherPayment } from '../models/TeacherPayment.js';
 import { Attendance }     from '../models/Attendance.js';
 import { protect, adminOnly, teacherOrAdmin, anyAuthenticated } from '../middleware/auth.js';
 import { upload, cloudinary } from '../config/cloudinary.js';
+import { ensureOverdue, normalizePaymentBody } from '../utils/paymentCycle.js';
 
 // ── UNIVERSAL ID NORMALIZER ──────────────────────────────────────────────────
 // Converts ANY mongoose document or plain object to a safe JSON with string IDs.
@@ -210,6 +211,8 @@ paymentRouter.use(protect);
 
 paymentRouter.get('/', async (req, res) => {
   try {
+    // Server-side overdue check (throttled to every 30 min, never duplicates)
+    await ensureOverdue().catch(e => console.warn('[payments] overdue check failed:', e.message));
     const filter = req.user.role === 'student' ? { studentId: req.user._id } : {};
     const payments = await Payment.find(filter).sort({ createdAt: -1 });
     res.json(normalizeMany(payments));
@@ -218,14 +221,21 @@ paymentRouter.get('/', async (req, res) => {
 
 paymentRouter.post('/', adminOnly, async (req, res) => {
   try {
-    const payment = await Payment.create(req.body);
+    const body = normalizePaymentBody(req.body);
+    // Old app versions still try to create "overdue" records from the browser:
+    // if that student already has ANY record for that month, return it instead of duplicating.
+    if (body.status === 'overdue' && body.studentId && body.monthKey) {
+      const existing = await Payment.findOne({ studentId: body.studentId, monthKey: body.monthKey });
+      if (existing) return res.status(200).json(normalize(existing));
+    }
+    const payment = await Payment.create(body);
     res.status(201).json(normalize(payment));
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 paymentRouter.put('/:id', adminOnly, async (req, res) => {
   try {
-    const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const payment = await Payment.findByIdAndUpdate(req.params.id, normalizePaymentBody(req.body), { new: true });
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
     res.json(normalize(payment));
   } catch (err) { res.status(500).json({ message: err.message }); }

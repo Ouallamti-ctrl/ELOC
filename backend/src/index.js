@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import connectDB from './config/db.js';
+import { backfillMonthKeys, ensureOverdue } from './utils/paymentCycle.js';
 
 // Simple in-memory rate limiter (no extra deps)
 function createRateLimiter({ windowMs = 60000, max = 20, message = 'Too many requests' } = {}) {
@@ -73,6 +74,11 @@ app.use((err, req, res, next) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-connectDB().then(() => {
+connectDB().then(async () => {
   app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
+  try {
+    await backfillMonthKeys();
+    await ensureOverdue({ force: true });
+  } catch (e) { console.warn('[payments] startup check failed:', e.message); }
+  setInterval(() => ensureOverdue({ force: true }).catch(e => console.warn('[payments]', e.message)), 6 * 60 * 60 * 1000);
 });

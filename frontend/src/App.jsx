@@ -190,53 +190,30 @@ function derivePayStatus(payments, studentId, users) {
   return "paid";
 }
 
-// Auto-overdue: given all students, payments, and today's date,
-// return list of new overdue payment objects to create for students who missed their monthly payment.
-// Skips students who are on_hold or cancelled.
-// Parse which month a payment COVERS (not when it was recorded)
-function parsePaymentMonth(p) {
-  if (p.dueDate) { const d = new Date(p.dueDate); if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), 1); }
-  if (p.month)   { const d = new Date(p.month + " 1"); if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), 1); }
-  if (p.date)    { const d = new Date(p.date); if (!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), 1); }
-  return null;
+// ── PAYMENT MONTH HELPERS ─────────────────────────────────────────────────────
+// Each payment covers ONE month, stored as monthKey "YYYY-MM" (server fills it).
+// Overdue records are created by the SERVER only — never by the browser.
+const PAY_MONTHS = { january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12,
+  janvier:1,"février":2,fevrier:2,mars:3,avril:4,mai:5,juin:6,juillet:7,"août":8,aout:8,septembre:9,octobre:10,novembre:11,"décembre":12,decembre:12 };
+// Local calendar date as YYYY-MM-DD (toISOString() shifts to UTC → wrong day in Morocco)
+const localISO = (d = new Date()) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const thisMonthKey = () => localISO().slice(0, 7);
+function monthKeyOf(p) {
+  if (!p) return null;
+  if (p.monthKey) return p.monthKey;
+  const s = String(p.month || "").trim().replace(/\s+/g, " ");
+  if (/^\d{4}-\d{2}$/.test(s)) return s;
+  const m = /^(\S+) (\d{4})$/.exec(s);
+  if (m && PAY_MONTHS[m[1].toLowerCase()]) return m[2] + "-" + String(PAY_MONTHS[m[1].toLowerCase()]).padStart(2, "0");
+  return p.dueDate ? String(p.dueDate).slice(0, 7) : null;
 }
-
-function computeOverduePayments(students, payments) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const toCreate = [];
-  for (const st of students) {
-    if (st.role !== "student") continue;
-    if (st.paymentStatus === "on_hold" || st.paymentStatus === "cancelled") continue;
-    const paidPayments = payments.filter(p => String(p.studentId) === String(st.id) && p.status === "paid");
-    if (paidPayments.length === 0) continue;
-    // Sort by the month the payment COVERS, not when it was recorded
-    const withMonth = paidPayments
-      .map(p => ({ p, monthStart: parsePaymentMonth(p) }))
-      .filter(x => x.monthStart !== null)
-      .sort((a, b) => b.monthStart - a.monthStart);
-    if (withMonth.length === 0) continue;
-    const { p: lastPaid, monthStart: lastCoveredMonth } = withMonth[0];
-    // Next due = 1st of the month after last covered month
-    const nextDue = new Date(lastCoveredMonth.getFullYear(), lastCoveredMonth.getMonth() + 1, 1);
-    // Use same day-of-month as due date if available
-    const dayOfMonth = lastPaid.dueDate ? new Date(lastPaid.dueDate).getDate() : (lastPaid.date ? new Date(lastPaid.date).getDate() : 1);
-    nextDue.setDate(dayOfMonth);
-    nextDue.setHours(0,0,0,0);
-    if (nextDue > today) continue;
-    const nextKey   = nextDue.getFullYear() + "-" + String(nextDue.getMonth() + 1).padStart(2, "0");
-    const nextLabel = nextDue.toLocaleString("default", { month: "long", year: "numeric" });
-    const alreadyExists = payments.some(p => {
-      if (String(p.studentId) !== String(st.id)) return false;
-      if (p.status !== "overdue" && p.status !== "paid") return false;
-      if (p.dueDate && p.dueDate.startsWith(nextKey)) return true;
-      if (p.month && p.month.toLowerCase() === nextLabel.toLowerCase()) return true;
-      return false;
-    });
-    if (alreadyExists) continue;
-    toCreate.push({ studentId: String(st.id), amount: lastPaid.amount, month: nextLabel, status: "overdue", dueDate: nextDue.toISOString().split("T")[0], date: null });
-  }
-  return toCreate;
+function monthKeyLabel(key, short = false) {
+  if (!key) return "—";
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleString("en-US", short ? { month: "short" } : { month: "long", year: "numeric" });
 }
+// Newest month first
+const byMonthDesc = (a, b) => (monthKeyOf(b) || "").localeCompare(monthKeyOf(a) || "");
 
 const avatarPalette = ["#f97316","#8b5cf6","#ec4899","#f59e0b","#22c55e","#3b82f6","#ef4444","#06b6d4"];
 const getAvatarColor = (s) => avatarPalette[(s?.charCodeAt(0) ?? 0) % avatarPalette.length];
@@ -5955,22 +5932,16 @@ function AdminDashboard({ data, user }) {
     return "paid";
   };
 
-  // Build last 6 months of real revenue data - match by date OR month label
+  // Last 6 months of revenue — each paid fee counted once, in the month it covers
   const monthlyRev = (() => {
     const months = [];
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(); d.setMonth(d.getMonth() - i);
-      const ym = d.toISOString().slice(0, 7);
-      const monthLabel = d.toLocaleString("default", { month: "long", year: "numeric" });
+      const _now = new Date(); const d = new Date(_now.getFullYear(), _now.getMonth() - i, 1);
+      const ym = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
       const v = data.payments
-        .filter(p => {
-          if (p.status !== "paid") return false;
-          if (p.date && p.date.slice(0, 7) === ym) return true;
-          if (p.month && p.month.toLowerCase() === monthLabel.toLowerCase()) return true;
-          return false;
-        })
+        .filter(p => p.status === "paid" && monthKeyOf(p) === ym)
         .reduce((s, p) => s + (p.amount || 0), 0);
-      months.push({ l: d.toLocaleString("default", { month: "short" }), v });
+      months.push({ l: monthKeyLabel(ym, true), v });
     }
     return months;
   })();
@@ -6217,7 +6188,7 @@ function StudentProfileModal({ student, data, setData, onClose, onResetPassword 
       <div className="sh-title mb8">Payment History</div>
       {data.payments.filter(p => String(p.studentId) === String(freshStudent.id)).length === 0
         ? <div className="empty" style={{ padding: "12px 0" }}><div className="empty-icon" style={{ fontSize: 22 }}>💳</div><div className="empty-title">No payments yet</div></div>
-        : data.payments.filter(p => String(p.studentId) === String(freshStudent.id)).map(p => (
+        : data.payments.filter(p => String(p.studentId) === String(freshStudent.id)).sort(byMonthDesc).map(p => (
           <div key={p.id} className="li">
             <div style={{ flex: 1 }}><div className="fw7 text-sm">{p.month}</div><div className="text-xs muted">Due: {p.dueDate}</div></div>
             <div className="fw7 mono" style={{ marginRight: 10 }}>{fmt$(p.amount)}</div>
@@ -6976,9 +6947,13 @@ function TeachersPage({ data, setData }) {
     return { revenue, commission, paid, balance: commission - paid, sessions: data.sessions.filter(s => String(s.teacherId) === String(tid) && s.status === "completed").length };
   };
 
-  const markTeacherPaid = (tpId) => {
-    setData(d => ({ ...d, teacherPayments: d.teacherPayments.map(tp => tp.id === tpId ? { ...tp, status: "paid", date: new Date().toISOString().split("T")[0] } : tp) }));
-    toast("Payment processed");
+  const markTeacherPaid = async (tpId) => {
+    try {
+      const today = localISO();
+      await api.teacherPayments.update(tpId, { status: "paid", date: today });
+      setData(d => ({ ...d, teacherPayments: d.teacherPayments.map(tp => tp.id === tpId ? { ...tp, status: "paid", date: today } : tp) }));
+      toast("Payment processed");
+    } catch (e) { toast(e.message || "Failed to save", "error"); }
   };
 
   const strength = pwStrength(form.password);
@@ -7361,27 +7336,32 @@ function PaymentsPage({ data, setData, userRole, userId }) {
   const [payAmount, setPayAmount] = useState("");
   const [payMonth,  setPayMonth]  = useState(() => {
     const d = new Date();
-    return d.toLocaleString("default",{month:"long"})+" "+d.getFullYear();
+    return d.toLocaleString("en-US",{month:"long"})+" "+d.getFullYear();
   });
   // Auto-fill payment form based on selected student's last payment
+  // Month suggested for a student = their OLDEST unpaid month; otherwise the
+  // month after their latest record; otherwise the current month.
   const autoFillPayForm = (studentId, currentPayments) => {
-    const now = new Date();
-    // Default month = current month as YYYY-MM for input[type=month]
-    const defaultMonth = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
-    // Default due = 1st of next month
-    const nextMonth = new Date(now.getFullYear(), now.getMonth()+1, 1);
-    const defaultDue = nextMonth.toISOString().split("T")[0];
-    if (!studentId) return { studentId:"", amount:"", month:defaultMonth, status:"paid", dueDate:defaultDue };
-    const paid = currentPayments
-      .filter(p => String(p.studentId) === String(studentId) && p.status === "paid" && p.date)
-      .sort((a,b) => b.date.localeCompare(a.date));
-    const last = paid[0];
+    const defaultMonth = thisMonthKey();
+    if (!studentId) return { studentId:"", amount:"", month:defaultMonth, status:"paid", dueDate:defaultMonth + "-01" };
+    const mine = currentPayments.filter(p => String(p.studentId) === String(studentId) && monthKeyOf(p)).sort(byMonthDesc);
+    const unpaid = mine.filter(p => p.status !== "paid");
+    const last = mine[0];
+    let month = defaultMonth;
+    if (unpaid.length) month = monthKeyOf(unpaid[unpaid.length - 1]);
+    else if (last) {
+      const [y, m] = monthKeyOf(last).split("-").map(Number);
+      const next = new Date(y, m, 1);
+      month = next.getFullYear() + "-" + String(next.getMonth() + 1).padStart(2, "0");
+    }
+    const lastPaid = mine.find(p => p.status === "paid");
+    const dueDay = last?.dueDate && String(last.dueDate).slice(0, 7) === monthKeyOf(last) ? String(last.dueDate).slice(8, 10) : "01";
     return {
       studentId,
-      amount: last ? String(last.amount) : "",
-      month: defaultMonth,
+      amount: lastPaid ? String(lastPaid.amount) : last ? String(last.amount) : "",
+      month,
       status: "paid",
-      dueDate: defaultDue,
+      dueDate: month + "-" + dueDay,
     };
   };
   const [form, setForm] = useState(() => autoFillPayForm("", []));
@@ -7390,13 +7370,13 @@ function PaymentsPage({ data, setData, userRole, userId }) {
   const [period,    setPeriod]    = useState("monthly");    // daily|weekly|monthly|yearly|custom
   const [customFrom,setCustomFrom]= useState("");
   const [customTo,  setCustomTo]  = useState("");
-  const [selMonth,  setSelMonth]  = useState("2026-03");    // for monthly picker
-  const [selYear,   setSelYear]   = useState("2026");       // for yearly picker
+  const [selMonth,  setSelMonth]  = useState(() => thisMonthKey());               // for monthly picker
+  const [selYear,   setSelYear]   = useState(() => String(new Date().getFullYear())); // for yearly picker
   const [selWeek,   setSelWeek]   = useState(() => {
     const d = new Date(); d.setDate(d.getDate()-d.getDay());
-    return d.toISOString().split("T")[0];
+    return localISO(d);
   });
-  const [selDay,    setSelDay]    = useState("2025-02-26");
+  const [selDay,    setSelDay]    = useState(() => localISO());
 
   // ── search & status filter ────────────────────────────────────────────────────
   const [search,    setSearch]    = useState("");
@@ -7446,7 +7426,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
   const periodLabel = () => {
     if (period === "daily")   return selDay;
     if (period === "weekly")  { const s=parseDate(selWeek)||new Date(); const e=new Date(s); e.setDate(s.getDate()+6); return s.toLocaleDateString("en",{month:"short",day:"numeric"})+" – "+e.toLocaleDateString("en",{month:"short",day:"numeric",year:"numeric"}); }
-    if (period === "monthly") { const [yr,mo]=selMonth.split("-"); return new Date(yr,mo-1,1).toLocaleString("default",{month:"long",year:"numeric"}); }
+    if (period === "monthly") return monthKeyLabel(selMonth);
     if (period === "yearly")  return selYear;
     if (period === "custom" && customFrom && customTo) return customFrom+" → "+customTo;
     return "All time";
@@ -7454,8 +7434,8 @@ function PaymentsPage({ data, setData, userRole, userId }) {
 
   // shift period forward/back
   const shiftPeriod = (dir) => {
-    if (period==="daily")  { const d=new Date(selDay); d.setDate(d.getDate()+dir); setSelDay(d.toISOString().split("T")[0]); }
-    if (period==="weekly") { const d=new Date(selWeek); d.setDate(d.getDate()+dir*7); setSelWeek(d.toISOString().split("T")[0]); }
+    if (period==="daily")  { const d=new Date(selDay+"T00:00"); d.setDate(d.getDate()+dir); setSelDay(localISO(d)); }
+    if (period==="weekly") { const d=new Date(selWeek+"T00:00"); d.setDate(d.getDate()+dir*7); setSelWeek(localISO(d)); }
     if (period==="monthly"){ const [yr,mo]=selMonth.split("-").map(Number); const nd=new Date(yr,mo-1+dir,1); setSelMonth(nd.getFullYear()+"-"+String(nd.getMonth()+1).padStart(2,"0")); }
     if (period==="yearly") { setSelYear(s=>String(Number(s)+dir)); }
   };
@@ -7463,31 +7443,26 @@ function PaymentsPage({ data, setData, userRole, userId }) {
   // ── student payments ─────────────────────────────────────────────────────────
   const allStudentPay = userRole==="student" ? data.payments.filter(p=>String(p.studentId)===String(userId)) : data.payments;
 
-  // Helper: check if a payment's month label (e.g. "January 2026") matches the selected period
-  const monthLabelInPeriod = (monthLabel) => {
-    if (!monthLabel) return false;
-    if (period === "monthly") {
-      const [yr, mo] = selMonth.split("-").map(Number);
-      const rangeLabel = new Date(yr, mo - 1, 1).toLocaleString("default", { month: "long", year: "numeric" });
-      return monthLabel.toLowerCase() === rangeLabel.toLowerCase();
-    }
-    if (period === "yearly") return monthLabel.includes(selYear);
-    return false;
+  // Month / Year view: a payment belongs ONLY to the month it covers (monthKey),
+  // never also to the month it was paid in — that was counting payments twice.
+  // Day / Week / Custom view: by the day it was paid (or due, if unpaid).
+  const paymentInPeriod = (p) => {
+    const key = monthKeyOf(p);
+    if (period === "monthly") return key === selMonth;
+    if (period === "yearly")  return !!key && key.startsWith(selYear + "-");
+    return inPeriod(p.date || p.dueDate);
   };
 
   const filteredStudentPay = allStudentPay.filter(p => {
-    const dateToCheck = p.date || p.dueDate;
-    const passesDateFilter = inPeriod(dateToCheck);
-    const passesMonthLabel = monthLabelInPeriod(p.month);
-    if (!passesDateFilter && !passesMonthLabel) return false;
+    if (!paymentInPeriod(p)) return false;
     if (statusF!=="all" && p.status!==statusF) return false;
     if (search) {
       const st = data.users.find(u=>String(u.id)===String(p.studentId));
       if (!st?.name.toLowerCase().includes(search.toLowerCase()) &&
-          !p.month.toLowerCase().includes(search.toLowerCase())) return false;
+          !(p.month||"").toLowerCase().includes(search.toLowerCase())) return false;
     }
     return true;
-  });
+  }).sort(byMonthDesc);
 
   const sPaid    = filteredStudentPay.filter(p=>p.status==="paid").reduce((s,p)=>s+p.amount,0);
   const sPending = filteredStudentPay.filter(p=>p.status==="pending").reduce((s,p)=>s+p.amount,0);
@@ -7517,14 +7492,12 @@ function PaymentsPage({ data, setData, userRole, userId }) {
 
   // ── overview revenue chart data (monthly last 6) ──────────────────────────────
   const last6 = Array.from({length:6},(_,i)=>{
-    const d=new Date(2025,1-i,1);
-    const label=d.toLocaleString("default",{month:"short"});
+    const _now=new Date(); const d=new Date(_now.getFullYear(),_now.getMonth()-i,1);
+    const label=d.toLocaleString("en-US",{month:"short"});
     const yr=d.getFullYear(), mo=d.getMonth();
-    const collected = data.payments.filter(p=>{
-      if(p.status!=="paid"||!p.date) return false;
-      const pd=new Date(p.date);
-      return pd.getFullYear()===yr&&pd.getMonth()===mo;
-    }).reduce((s,p)=>s+p.amount,0);
+    const key=yr+"-"+String(mo+1).padStart(2,"0");
+    // revenue of a month = fees paid FOR that month
+    const collected = data.payments.filter(p=>p.status==="paid"&&monthKeyOf(p)===key).reduce((s,p)=>s+p.amount,0);
     const payroll = data.teacherPayments.filter(tp=>{
       if(tp.status!=="paid"||!tp.date) return false;
       const td=new Date(tp.date);
@@ -7536,34 +7509,52 @@ function PaymentsPage({ data, setData, userRole, userId }) {
   const chartMax = Math.max(...last6.map(x=>x.collected),1);
 
   // ── mutations ─────────────────────────────────────────────────────────────────
+  const toPay = (p) => { const k = monthKeyOf(p); return { ...p, id: p._id?.toString() || p.id, ...(k ? { monthKey: k, month: monthKeyLabel(k) } : {}) }; };
+
+  // One record per student per month:
+  //  - month already PAID      → refuse (no double payment)
+  //  - month OVERDUE / PENDING → update that record instead of adding a second one
+  //  - nothing for that month  → create it
   const addPayment = async () => {
     if(!form.studentId||!form.amount){toast("Student and amount required","error");return;}
+    if(!/^\d{4}-\d{2}$/.test(form.month||"")){toast("Choose the month this payment is for","error");return;}
+    const key = form.month;
+    const sameMonth = data.payments.filter(p => String(p.studentId)===String(form.studentId) && monthKeyOf(p)===key);
+    if (sameMonth.some(p => p.status==="paid")) {
+      toast(`${monthKeyLabel(key)} is already paid for this student`, "error"); return;
+    }
+    const body = {
+      studentId: form.studentId,
+      monthKey: key,
+      month: monthKeyLabel(key),
+      amount: Number(form.amount),
+      status: form.status,
+      date: form.status==="paid" ? localISO() : null,
+      dueDate: form.dueDate,
+    };
     try {
-      // Convert YYYY-MM month picker value to readable label e.g. "March 2026"
-      let monthLabel = form.month;
-      if (form.month && /^\d{4}-\d{2}$/.test(form.month)) {
-        const [yr, mo] = form.month.split("-").map(Number);
-        monthLabel = new Date(yr, mo-1, 1).toLocaleString("default", { month: "long", year: "numeric" });
+      const open = sameMonth.find(p => p.status!=="paid");
+      if (open) {
+        const upd = await api.payments.update(open.id, body);
+        setData(d=>({...d, payments:d.payments.map(p=>p.id===open.id ? toPay(upd) : p)}));
+        toast(`${monthKeyLabel(key)} updated (${body.status}) ✅`);
+      } else {
+        const newP = await api.payments.create(body);
+        setData(d=>({...d, payments:[...d.payments, toPay(newP)]}));
+        toast("Payment recorded ✅");
       }
-      const newP = await api.payments.create({
-        ...form,
-        month: monthLabel,
-        amount: Number(form.amount),
-        date: form.status==="paid" ? new Date().toISOString().split("T")[0] : null,
-        dueDate: form.dueDate,
-      });
-      const flat = { ...newP, id: newP._id?.toString() || newP.id };
-      setData(d=>({...d, payments:[...d.payments, flat]}));
-      toast("Payment recorded ✅");
       setShowAdd(false);
       setForm(autoFillPayForm("", data.payments));
     } catch(e) { toast(e.message || "Failed to add payment", "error"); }
   };
 
+  // Only changes THIS record. The next month's overdue is created by the server
+  // only when that month is actually due — clicking "Paid" never adds records.
   const markPaid = async id => {
     try {
-      await api.payments.update(id, { status:"paid", date:new Date().toISOString().split("T")[0] });
-      setData(d=>({...d,payments:d.payments.map(p=>p.id===id?{...p,status:"paid",date:new Date().toISOString().split("T")[0]}:p)}));
+      const today = localISO();
+      const upd = await api.payments.update(id, { status:"paid", date:today });
+      setData(d=>({...d,payments:d.payments.map(p=>p.id===id?toPay({...p,...upd,status:"paid",date:today}):p)}));
       toast("Marked as paid ✅");
     } catch(e) { toast(e.message||"Failed","error"); }
   };
@@ -7576,13 +7567,17 @@ function PaymentsPage({ data, setData, userRole, userId }) {
     } catch(e) { toast(e.message||"Failed","error"); }
   };
 
-  const payTeacher = () => {
+  // Saved to the server (was only kept on screen → lost on refresh / other devices)
+  const payTeacher = async () => {
     if(!payAmount||Number(payAmount)<=0){toast("Enter a valid amount","error");return;}
-    const rec = { id:Date.now(), teacherId:showPayT.id, amount:Number(payAmount), month:payMonth,
-      status:"paid", date:new Date().toISOString().split("T")[0] };
-    setData(d=>({...d,teacherPayments:[...d.teacherPayments,rec]}));
-    toast(`💰 $${payAmount} paid to ${showPayT.name}`);
-    setShowPayT(null); setPayAmount("");
+    try {
+      const saved = await api.teacherPayments.create({ teacherId:showPayT.id, amount:Number(payAmount), month:payMonth,
+        status:"paid", date:localISO() });
+      const rec = { ...saved, id: saved._id?.toString() || saved.id, teacherId: String(saved.teacherId ?? showPayT.id) };
+      setData(d=>({...d,teacherPayments:[...d.teacherPayments,rec]}));
+      toast(`💰 ${fmt$(Number(payAmount))} paid to ${showPayT.name}`);
+      setShowPayT(null); setPayAmount("");
+    } catch(e) { toast(e.message||"Failed to save teacher payment","error"); }
   };
 
   // ── period nav bar ────────────────────────────────────────────────────────────
@@ -8045,7 +8040,7 @@ function PaymentsPage({ data, setData, userRole, userId }) {
             <input type="number" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="150"/>
           </div>
           <div className="fg"><label>Month / Period</label>
-            <input type="month" value={form.month} onChange={e=>setForm(p=>({...p,month:e.target.value}))}/>
+            <input type="month" value={form.month} onChange={e=>{ const m=e.target.value; setForm(p=>({...p,month:m,dueDate:m?m+"-"+(String(p.dueDate||"").slice(8,10)||"01"):p.dueDate})); }}/>
           </div>
           <div className="fg"><label>Due Date</label>
             <input type="date" value={form.dueDate} onChange={e=>setForm(p=>({...p,dueDate:e.target.value}))}/>
@@ -8252,7 +8247,7 @@ function StudentDashboard({ user, data }) {
     .sort((a, b) => (`${a.date}T${a.startTime||a.time||"00:00"}`).localeCompare(`${b.date}T${b.startTime||b.time||"00:00"}`));
   const attended = completed.filter(s => (s.attendance ?? {})[String(user.id)] === true || (s.attendance ?? {})[user.id] === true).length;
   const attRate = completed.length > 0 ? Math.round((attended / completed.length) * 100) : 0;
-  const myPayments = data.payments.filter(p => String(p.studentId) === String(user.id));
+  const myPayments = data.payments.filter(p => String(p.studentId) === String(user.id)).sort(byMonthDesc);
 
   // FIX: Session detail modal state for student dashboard
   const [viewSessionId, setViewSessionId] = useState(null);
@@ -8403,20 +8398,16 @@ function Analytics({ data, teacherFilter = null }) {
     return true;
   };
 
-  // Also match by month label string when p.date is absent
+  // A payment belongs to the month it covers — counted once
   const paymentInPeriod = p => {
-    if (inPeriod(p.date)) return true;
-    if (period === "monthly") {
-      const [yr, mo] = selMonth.split("-").map(Number);
-      const label = new Date(yr, mo - 1, 1).toLocaleString("default", { month: "long", year: "numeric" });
-      return p.month && p.month.toLowerCase() === label.toLowerCase();
-    }
-    if (period === "yearly") return p.month && p.month.includes(selYear);
+    const key = monthKeyOf(p);
+    if (period === "monthly") return key === selMonth;
+    if (period === "yearly") return !!key && key.startsWith(selYear + "-");
     return period === "all";
   };
 
   const periodLabel = period === "monthly"
-    ? new Date(selMonth + "-01").toLocaleString("default", { month:"long", year:"numeric" })
+    ? monthKeyLabel(selMonth)
     : period === "yearly" ? selYear : "All Time";
 
   const shiftMonth = d => {
@@ -8439,15 +8430,9 @@ function Analytics({ data, teacherFilter = null }) {
   const last7 = Array.from({length:7},(_,i)=>{
     const _now = new Date(); const d = new Date(_now.getFullYear(), _now.getMonth()-i, 1);
     const key = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
-    const mLabel = d.toLocaleString("default",{month:"long",year:"numeric"});
-    const rev = data.payments.filter(p=>{
-      if(p.status!=="paid") return false;
-      if(p.date?.startsWith(key)) return true;
-      if(p.month&&p.month.toLowerCase()===mLabel.toLowerCase()) return true;
-      return false;
-    }).reduce((s,p)=>s+p.amount,0);
+    const rev = data.payments.filter(p=>p.status==="paid"&&monthKeyOf(p)===key).reduce((s,p)=>s+p.amount,0);
     const pay = data.teacherPayments.filter(p=>p.status==="paid"&&p.date?.startsWith(key)).reduce((s,p)=>s+p.amount,0);
-    return { label:d.toLocaleString("default",{month:"short"}), rev, pay, profit:rev-pay };
+    return { label:monthKeyLabel(key, true), rev, pay, profit:rev-pay };
   }).reverse();
   const chartMax = Math.max(...last7.map(x=>x.rev), 1);
 
@@ -11600,9 +11585,10 @@ export default function App() {
     return flat;
   });
 
-  const loadAllData = useCallback(async () => {
+  // silent = background refresh (no loading screen, keep current data if it fails)
+  const loadAllData = useCallback(async (silent = false) => {
     try {
-      setApiLoading(true);
+      if (!silent) setApiLoading(true);
       const [users, groups, sessions, series, payments, books, lessons, attendance, teacherPayments] = await Promise.all([
         api.users.list(),
         api.groups.list(),
@@ -11619,7 +11605,8 @@ export default function App() {
         groups:         normalize(groups),
         sessions:       normalize(sessions),
         series:         normalize(series),
-        payments:       normalize(payments),
+        // every payment gets monthKey ("2026-03") + one English label, whatever language it was saved in
+        payments:       normalize(payments).map(p => { const k = monthKeyOf(p); return k ? { ...p, monthKey: k, month: monthKeyLabel(k) } : p; }),
         books:          normalize(books),
         lessons:        normalize(lessons),
         attendance:     normalize(attendance),
@@ -11628,9 +11615,9 @@ export default function App() {
     } catch (err) {
       console.error("Failed to load data:", err);
       // Keep emptyData on error so app still renders
-      setData(d => ({ ...emptyData, ...d }));
+      if (!silent) setData(d => ({ ...emptyData, ...d }));
     } finally {
-      setApiLoading(false);
+      if (!silent) setApiLoading(false);
     }
   }, []);
 
@@ -11658,30 +11645,27 @@ export default function App() {
     if (user) loadAllData();
   }, [user, loadAllData]);
 
-  // Auto-overdue check: runs after data loads and every 24h
+  // Keep every device in sync: refresh from the server every 60s while the tab
+  // is visible, and immediately when the tab/window comes back into focus.
+  // (Overdue records are now created by the server, not here.)
   useEffect(() => {
-    if (!user || user.role !== "admin") return;
-    if (!data.users.length) return;
-    const runCheck = async () => {
-      const toCreate = computeOverduePayments(data.users, data.payments);
-      if (toCreate.length === 0) return;
-      const created = [];
-      for (const p of toCreate) {
-        try {
-          const newP = await api.payments.create(p);
-          const flat = { ...newP, id: newP._id?.toString() || newP.id };
-          created.push(flat);
-        } catch(e) { console.warn("Auto-overdue create failed:", e); }
-      }
-      if (created.length > 0) {
-        setData(d => ({ ...d, payments: [...d.payments, ...created] }));
-        console.log(`Auto-overdue: created ${created.length} overdue record(s)`);
-      }
+    if (!user) return;
+    let last = Date.now();
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - last < 5000) return;
+      last = Date.now();
+      loadAllData(true);
     };
-    runCheck();
-    const timer = setInterval(runCheck, 24 * 60 * 60 * 1000);
-    return () => clearInterval(timer);
-  }, [user, data.users, data.payments]);
+    const timer = setInterval(refresh, 60 * 1000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [user, loadAllData]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);

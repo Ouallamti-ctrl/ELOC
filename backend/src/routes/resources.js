@@ -9,7 +9,7 @@ import { TeacherPayment } from '../models/TeacherPayment.js';
 import { Attendance }     from '../models/Attendance.js';
 import { protect, adminOnly, teacherOrAdmin, anyAuthenticated } from '../middleware/auth.js';
 import { upload, cloudinary } from '../config/cloudinary.js';
-import { ensureOverdue, normalizePaymentBody } from '../utils/paymentCycle.js';
+import { ensureOverdue, normalizePaymentBody, cleanupInactiveOverdue } from '../utils/paymentCycle.js';
 
 // ── UNIVERSAL ID NORMALIZER ──────────────────────────────────────────────────
 // Converts ANY mongoose document or plain object to a safe JSON with string IDs.
@@ -212,6 +212,7 @@ paymentRouter.use(protect);
 paymentRouter.get('/', async (req, res) => {
   try {
     // Server-side overdue check (throttled to every 30 min, never duplicates)
+    if (req.user.role === 'admin') await cleanupInactiveOverdue().catch(e => console.warn('[payments] cleanup failed:', e.message));
     await ensureOverdue().catch(e => console.warn('[payments] overdue check failed:', e.message));
     const filter = req.user.role === 'student' ? { studentId: req.user._id } : {};
     const payments = await Payment.find(filter).sort({ createdAt: -1 });

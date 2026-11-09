@@ -103,6 +103,16 @@ export function ensureOverdue({ force = false, dryRun = null } = {}) {
   return running;
 }
 
+// When a student is set to cancelled / on_hold, remove the UNPAID overdue records
+// the server generated for them (auto: true). Manually entered records are never touched.
+export async function cleanupInactiveOverdue() {
+  const inactive = await User.find({ role: 'student', paymentStatus: { $in: ['on_hold', 'cancelled'] } }, { _id: 1 }).lean();
+  if (!inactive.length) return 0;
+  const r = await Payment.deleteMany({ auto: true, status: 'overdue', studentId: { $in: inactive.map(u => u._id) } });
+  if (r.deletedCount) console.log(`[payments] removed ${r.deletedCount} auto-overdue record(s) of cancelled/on-hold students`);
+  return r.deletedCount;
+}
+
 // One-time fix for old records: add monthKey and an English label.
 export async function backfillMonthKeys() {
   const docs = await Payment.find({ $or: [{ monthKey: { $exists: false } }, { monthKey: null }] }, { month: 1, dueDate: 1 }).lean();

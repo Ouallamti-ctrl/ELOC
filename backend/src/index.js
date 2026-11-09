@@ -61,7 +61,7 @@ app.use('/api/attendance',        attendanceRouter);
 app.use('/api/teacher-payments',  teacherPaymentRouter);
 
 // ── Health check ─────────────────────────────────────────────────────────────
-app.get('/api/health', (_, res) => res.json({ status: 'ok', time: new Date() }));
+app.get('/api/health', (_, res) => res.json({ status: 'ok', time: new Date(), payments: 'v2' }));
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_, res) => res.status(404).json({ message: 'Route not found' }));

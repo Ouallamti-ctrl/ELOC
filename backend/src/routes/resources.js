@@ -567,3 +567,36 @@ attendanceRouter.delete('/:id', async (req, res) => {
   try { await Attendance.findByIdAndDelete(req.params.id); res.json({ ok: true }); }
   catch (err) { res.status(400).json({ message: err.message }); }
 });
+
+// ── TRIAL SLOTS (extra trial-test times set by the admin) ────────────────────
+import { TrialSlot } from '../models/TrialSlot.js';
+export const trialSlotRouter = express.Router();
+trialSlotRouter.use(protect);
+
+trialSlotRouter.get('/', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const slots = await TrialSlot.find({ $or: [{ date: '' }, { date: { $gte: today } }] }).sort({ date: 1, time: 1 });
+    res.json(normalizeMany(slots));
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+trialSlotRouter.post('/', adminOnly, async (req, res) => {
+  try {
+    const date = String(req.body.date || '').trim();
+    const time = String(req.body.time || '').trim();
+    if (!/^\d{2}:\d{2}$/.test(time)) return res.status(400).json({ message: 'Time must be HH:MM' });
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ message: 'Date must be YYYY-MM-DD' });
+    const exists = await TrialSlot.findOne({ date, time });
+    if (exists) return res.status(400).json({ message: 'This time already exists' });
+    const slot = await TrialSlot.create({ date, time });
+    res.status(201).json(normalize(slot));
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+trialSlotRouter.delete('/:id', adminOnly, async (req, res) => {
+  try {
+    await TrialSlot.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Deleted' });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});

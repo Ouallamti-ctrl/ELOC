@@ -113,6 +113,11 @@ export const api = {
     update: (id, body) => request('PUT',    `/series/${id}`, body),
     delete: (id)       => request('DELETE', `/series/${id}`),
   },
+  trialSlots: {
+    list:   ()     => request('GET',    '/trial-slots'),
+    create: (body) => request('POST',   '/trial-slots', body),
+    delete: (id)   => request('DELETE', `/trial-slots/${id}`),
+  },
   attendance: {
     list:   ()           => request('GET',    '/attendance'),
     create: (body)       => request('POST',   '/attendance', body),

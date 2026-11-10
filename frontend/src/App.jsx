@@ -5216,6 +5216,25 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
   const [booking,  setBooking]  = useState(false);
   const [bookDone, setBookDone] = useState(false);
   const TIME_SLOTS = ["09:00","10:00","11:00","14:00","16:00","18:00"];
+  // Extra times added by the admin (Registrations page). date "" = every day.
+  const [extraSlots, setExtraSlots] = useState([]);
+  useEffect(() => {
+    if (step !== 3) return;
+    api.trialSlots.list().then(r => setExtraSlots(Array.isArray(r) ? r : [])).catch(() => {});
+  }, [step]);
+  const ymd = (d) => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  const slotsFor = (d) => {
+    if (!d) return TIME_SLOTS;
+    const ds = ymd(d);
+    const extra = extraSlots.filter(x => !x.date || x.date === ds).map(x => x.time);
+    let list = [...new Set([...TIME_SLOTS, ...extra])].sort();
+    if (ds === ymd(new Date())) {
+      const now = new Date(); const hm = String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
+      list = list.filter(t => t > hm);
+    }
+    return list;
+  };
+  const hasExtraOn = (d) => { const ds = ymd(d); return extraSlots.some(x => x.date === ds); };
 
   // Most common country codes — sorted by usage relevance for a language school
   const COUNTRY_CODES = [
@@ -5420,7 +5439,8 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
                               color:past?"var(--text3)":sel?"#fff":"var(--text1)",
                               background:sel?"var(--accent)":"transparent",
                               border:isToday&&!sel?"1px solid var(--accent)":"1px solid transparent",
-                              opacity:past?0.3:1,transition:"all .15s"}}>{d}
+                              opacity:past?0.3:1,transition:"all .15s",position:"relative"}}>{d}
+                            {!past && hasExtraOn(date) && <span style={{position:"absolute",bottom:3,width:4,height:4,borderRadius:99,background:sel?"#fff":"#22c55e"}} />}
                           </div>
                         );
                       }
@@ -5433,7 +5453,10 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
                         Available slots — {selDate.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}
                       </div>
                       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
-                        {TIME_SLOTS.map(slot=>{
+                        {slotsFor(selDate).length===0 && (
+                          <div style={{gridColumn:"1/-1",fontSize:12,color:"var(--text3)",textAlign:"center",padding:10}}>No more slots today — please pick another date.</div>
+                        )}
+                        {slotsFor(selDate).map(slot=>{
                           const sel=selSlot===slot;
                           return (
                             <div key={slot} onClick={()=>setSelSlot(slot)}
@@ -5602,6 +5625,81 @@ function StudentSignupPage({ onBack, onSuccess, data, setData }) {
   );
 }
 
+// ─── TRIAL TEST TIMES (admin adds extra slots on top of the defaults) ────────
+const DEFAULT_TRIAL_SLOTS = ["09:00","10:00","11:00","14:00","16:00","18:00"];
+function TrialSlotsManager() {
+  const [slots, setSlots]   = React.useState([]);
+  const [open, setOpen]     = React.useState(false);
+  const [date, setDate]     = React.useState("");
+  const [everyDay, setEveryDay] = React.useState(false);
+  const [time, setTime]     = React.useState("");
+  const [busy, setBusy]     = React.useState(false);
+  const [msg, setMsg]       = React.useState("");
+  const load = () => api.trialSlots.list().then(r => setSlots(Array.isArray(r) ? r : [])).catch(e => setMsg(e.message));
+  React.useEffect(() => { load(); }, []);
+  const today = new Date().toISOString().split("T")[0];
+  const add = async () => {
+    setMsg("");
+    if (!time) { setMsg("Choose a time"); return; }
+    if (!everyDay && !date) { setMsg("Choose a date, or tick “Every day”"); return; }
+    setBusy(true);
+    try { await api.trialSlots.create({ date: everyDay ? "" : date, time }); setTime(""); await load(); }
+    catch (e) { setMsg(e.message); }
+    finally { setBusy(false); }
+  };
+  const del = async (id) => {
+    setMsg("");
+    try { await api.trialSlots.delete(id); setSlots(l => l.filter(x => x.id !== id)); }
+    catch (e) { setMsg(e.message); }
+  };
+  const fmt = (ds) => ds ? new Date(ds + "T12:00:00").toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" }) : "Every day";
+  const chip = { display:"inline-flex", alignItems:"center", gap:6, padding:"5px 12px", borderRadius:99, fontSize:12, fontWeight:700, border:"1px solid var(--border)", background:"var(--bg3)" };
+  return (
+    <div className="card mb16" style={{ padding:"14px 18px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", gap:10 }} onClick={() => setOpen(o => !o)}>
+        <div>
+          <div style={{ fontWeight:800, fontSize:14 }}>🕐 Trial test times</div>
+          <div style={{ fontSize:12, color:"var(--text3)" }}>{slots.length} extra time{slots.length !== 1 ? "s" : ""} added on top of the default slots</div>
+        </div>
+        <button className="btn btn-se" style={{ fontSize:12, padding:"6px 14px" }}>{open ? "Close" : "＋ Manage"}</button>
+      </div>
+      {open && (
+        <div style={{ marginTop:14 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"var(--text3)", textTransform:"uppercase", letterSpacing:.5, marginBottom:6 }}>Default (every day)</div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
+            {DEFAULT_TRIAL_SLOTS.map(t => <span key={t} style={{ ...chip, color:"var(--text3)" }}>{t}</span>)}
+          </div>
+          <div style={{ fontSize:11, fontWeight:700, color:"var(--text3)", textTransform:"uppercase", letterSpacing:.5, marginBottom:6 }}>Extra times</div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
+            {slots.length === 0 && <span style={{ fontSize:12, color:"var(--text3)" }}>None yet</span>}
+            {slots.map(x => (
+              <span key={x.id} style={{ ...chip, borderColor:"rgba(34,197,94,.4)", color:"#22c55e" }}>
+                {fmt(x.date)} · {x.time}
+                <span title="Remove" onClick={() => del(x.id)} style={{ cursor:"pointer", color:"#ef4444", marginLeft:2 }}>✕</span>
+              </span>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"flex-end" }}>
+            <div className="fg" style={{ margin:0 }}>
+              <label>Date</label>
+              <input type="date" min={today} value={date} disabled={everyDay} onChange={e => setDate(e.target.value)} />
+            </div>
+            <div className="fg" style={{ margin:0 }}>
+              <label>Time</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} />
+            </div>
+            <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, fontWeight:600, paddingBottom:10, cursor:"pointer" }}>
+              <input type="checkbox" checked={everyDay} onChange={e => setEveryDay(e.target.checked)} /> Every day
+            </label>
+            <button className="btn btn-pr" style={{ fontSize:12, padding:"9px 18px" }} disabled={busy} onClick={add}>{busy ? "Adding..." : "＋ Add time"}</button>
+          </div>
+          {msg && <div style={{ fontSize:12, color:"var(--red)", marginTop:8, fontWeight:600 }}>⚠ {msg}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── REGISTRATIONS PAGE ───────────────────────────────────────────────────────
 function RegistrationsPage({ data, setData }) {
   const [filter, setFilter] = React.useState("all");
@@ -5643,6 +5741,8 @@ function RegistrationsPage({ data, setData }) {
           <div className="ph-sub">{registrations.length} student{registrations.length !== 1 ? "s" : ""} booked a trial session</div>
         </div>
       </div>
+
+      <TrialSlotsManager />
 
       <div className="g4 mb16" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
         {[
